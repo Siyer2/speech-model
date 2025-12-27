@@ -1,0 +1,22 @@
+model:
+  encoder_dim: 256
+  hidden_dim: 128
+  num_classes: 5  # e.g., fronting, stopping, gliding, etc.
+  dropout: 0.1
+
+training:
+  batch_size: 16
+  epochs: 10
+  learning_rate: 0.001
+  seed: 42
+
+data:
+  # Placeholder for future real data paths
+  data_dir: "data/audio"
+  sample_rate: 16000
+
+wandb:
+  project: "speech-model"
+  entity: siyer22
+  enabled: true
+
