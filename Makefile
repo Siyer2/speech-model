@@ -1,4 +1,4 @@
-.PHONY: install train test
+.PHONY: install train test lint format
 
 install:
 	uv sync
@@ -8,4 +8,10 @@ train:
 
 test:
 	uv run pytest
+
+lint:
+	uv run ruff check .
+
+format:
+	uv run ruff format .
 

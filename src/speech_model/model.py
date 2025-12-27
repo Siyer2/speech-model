@@ -42,9 +42,7 @@ class SimpleEncoder(nn.Module):
 class ClassificationHead(nn.Module):
     """Classification head for phonological process detection."""
 
-    def __init__(
-        self, input_dim: int, hidden_dim: int, num_classes: int, dropout: float
-    ):
+    def __init__(self, input_dim: int, hidden_dim: int, num_classes: int, dropout: float):
         """Initialize classification head.
 
         Args:

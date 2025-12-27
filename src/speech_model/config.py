@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
@@ -40,7 +39,7 @@ class WandBConfig:
     """WandB configuration."""
 
     project: str
-    entity: Optional[str]
+    entity: str | None
     enabled: bool
 
 

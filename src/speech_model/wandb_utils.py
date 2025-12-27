@@ -1,7 +1,7 @@
 """WandB integration utilities."""
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import wandb
 
@@ -44,7 +44,7 @@ class WandBLogger:
             artifact.add_file(str(self.config_path))
             wandb.log_artifact(artifact)
 
-    def log(self, metrics: dict[str, Any], step: Optional[int] = None):
+    def log(self, metrics: dict[str, Any], step: int | None = None):
         """Log metrics to WandB.
 
         Args:

@@ -34,11 +34,11 @@ def create_dummy_data(batch_size: int, num_batches: int = 10):
     input_dim = 80
     num_samples = batch_size * num_batches
 
-    X = torch.randn(num_samples, seq_len, input_dim)
+    x = torch.randn(num_samples, seq_len, input_dim)
     # Random labels for 5 classes
     y = torch.randint(0, 5, (num_samples,))
 
-    dataset = TensorDataset(X, y)
+    dataset = TensorDataset(x, y)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
     return dataloader
@@ -68,7 +68,7 @@ def train_epoch(
     correct = 0
     total = 0
 
-    for batch_idx, (inputs, targets) in enumerate(dataloader):
+    for _batch_idx, (inputs, targets) in enumerate(dataloader):
         inputs, targets = inputs.to(device), targets.to(device)
 
         optimizer.zero_grad()
