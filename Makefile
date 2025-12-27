@@ -1,4 +1,4 @@
-.PHONY: install train test lint format
+.PHONY: install train test lint format typecheck quality pre-commit
 
 install:
 	uv sync
@@ -14,4 +14,14 @@ lint:
 
 format:
 	uv run ruff format .
+
+typecheck:
+	uvx ty check src/
+
+quality: lint typecheck
+	@echo "✓ All quality checks passed"
+
+pre-commit:
+	uv run --with pre-commit pre-commit install
+	@echo "✓ Pre-commit hooks installed"
 
