@@ -4,11 +4,11 @@
 
 ```bash
 # Install
-uv sync
+make install
 
 # Train
-./scripts/train.sh
+make train
 
 # Test
-uv run pytest
+make test
 ```
