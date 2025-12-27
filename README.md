@@ -1,7 +1,5 @@
 # Speech Model
 
-## Quick Start
-
 ```bash
 # Install
 make install
