@@ -1,4 +1,4 @@
-"""TALKBANK_COOKIE="..." uv run python scripts/acquire_speech_data.py"""
+"""TALKBANK_COOKIE="..." uv run python scripts/acquire_data.py"""
 
 import os
 import time
