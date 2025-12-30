@@ -9,3 +9,8 @@
    ```bash
    TALKBANK_COOKIE="..." uv run python scripts/acquire_data.py
    ```
+
+3. **Process data:**
+   ```bash
+   uv run python scripts/process_data.py
+   ```
