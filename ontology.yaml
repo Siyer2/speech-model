@@ -1,6 +1,5 @@
 error_patterns:
   voicing:
-    id: "voicing"
     description: "Changes a voiceless sound to a voiced sound"
     sounds_affected:
       - "t → d"
@@ -18,7 +17,6 @@ error_patterns:
     resolution_age_months: 36
 
   final_consonant_deletion:
-    id: "final_consonant_deletion"
     description: "Deletes the last sound in a word"
     sounds_affected: []
     examples:
@@ -29,7 +27,6 @@ error_patterns:
     resolution_age_months: 39
 
   fronting:
-    id: "fronting"
     description: "Changes a 'back' sound to a 'front' sound"
     sounds_affected:
       - "k → t"
@@ -50,7 +47,6 @@ error_patterns:
     resolution_age_months: 42
 
   weak_syllable_deletion:
-    id: "weak_syllable_deletion"
     description: "Deletes the 'unstressed' parts of a word"
     sounds_affected: []
     examples:
@@ -63,7 +59,6 @@ error_patterns:
     resolution_age_months: 48
 
   cluster_reduction:
-    id: "cluster_reduction"
     description: "Deletes one sound from a consonant cluster"
     sounds_affected:
       - "sp → p"
@@ -81,7 +76,6 @@ error_patterns:
     resolution_age_months: 48
 
   gliding_l:
-    id: "gliding_l"
     description: "Changes a 'l' sound to a 'w' or 'y' sound"
     sounds_affected:
       - "l → w"
@@ -94,7 +88,6 @@ error_patterns:
     resolution_age_months: 60
 
   gliding_r:
-    id: "gliding_r"
     description: "Changes a 'r' sound to a 'w' or 'y' sound"
     sounds_affected:
       - "r → w"
@@ -107,7 +100,6 @@ error_patterns:
     resolution_age_months: 60
 
   stopping_f_s:
-    id: "stopping_f_s"
     description: "Changes a fricative sound to a 'short' stop sound"
     sounds_affected:
       - "f → p"
@@ -118,7 +110,6 @@ error_patterns:
     resolution_age_months: 36
 
   stopping_v_z:
-    id: "stopping_v_z"
     description: "Changes a fricative sound to a 'short' stop sound"
     sounds_affected:
       - "v → b"
@@ -129,7 +120,6 @@ error_patterns:
     resolution_age_months: 42
 
   stopping_sh_ch_j:
-    id: "stopping_sh_ch_j"
     description: "Changes a fricative/affricate sound to a 'short' stop sound"
     sounds_affected:
       - "sh → t"
@@ -141,7 +131,6 @@ error_patterns:
     resolution_age_months: 54
 
   deaffrication:
-    id: "deaffrication"
     description: "Changes a 'j' or 'ch' sound to a fricative or stop"
     sounds_affected:
       - "ch → sh"
@@ -156,7 +145,6 @@ error_patterns:
     resolution_age_months: 48
 
   fricative_simplification:
-    id: "fricative_simplification"
     description: "Changes a 'th' sound to a 'f' sound"
     sounds_affected:
       - "th → f"
@@ -168,7 +156,6 @@ error_patterns:
     resolution_age_months: 84
 
   diminutisation:
-    id: "diminutisation"
     description: "Addition of the long 'ee' sound to the end of a word"
     sounds_affected: []
     examples:
@@ -179,7 +166,6 @@ error_patterns:
     resolution_age_months: 36
 
   epenthesis:
-    id: "epenthesis"
     description: "Addition of an unstressed 'e' (schwa)"
     sounds_affected: []
     examples:
@@ -190,7 +176,6 @@ error_patterns:
     resolution_age_months: 96
 
   assimilation:
-    id: "assimilation"
     description: "Changes a sound so it takes on a characteristic of another sound in the word"
     sounds_affected: []
     examples:
@@ -201,7 +186,6 @@ error_patterns:
     resolution_age_months: 45
 
   metathesis:
-    id: "metathesis"
     description: "Changes the order of sounds within a word"
     sounds_affected: []
     examples:
@@ -212,7 +196,6 @@ error_patterns:
     resolution_age_months: 96
 
   reduplication:
-    id: "reduplication"
     description: "Repeats the first syllable as the second syllable"
     sounds_affected: []
     examples:
@@ -223,7 +206,6 @@ error_patterns:
     resolution_age_months: 36
 
   coalescence:
-    id: "coalescence"
     description: "Substitutes two sounds with a different sound that still has similar features"
     sounds_affected: []
     examples:
@@ -235,7 +217,6 @@ error_patterns:
 
   # Atypical patterns (not part of typical development)
   sound_preference:
-    id: "sound_preference"
     description: "Changes a range of sounds to a 'favourite' sound"
     sounds_affected: []
     examples: []
@@ -245,7 +226,6 @@ error_patterns:
     notes: "Not part of typical speech development"
 
   backing:
-    id: "backing"
     description: "Changes a 'front' sound to a 'back' sound"
     sounds_affected:
       - "t → k"
@@ -261,7 +241,6 @@ error_patterns:
     notes: "Not part of typical speech development"
 
   vowel_distortions:
-    id: "vowel_distortions"
     description: "Inaccurate production of vowel sounds"
     sounds_affected: []
     examples: []
@@ -271,7 +250,6 @@ error_patterns:
     notes: "Not part of typical speech development"
 
   initial_consonant_deletion:
-    id: "initial_consonant_deletion"
     description: "Deletes the first sound in a word"
     sounds_affected: []
     examples: []
@@ -282,7 +260,6 @@ error_patterns:
 
   # Articulation errors
   lateral_lisp:
-    id: "lateral_lisp"
     description: "Produces the 's' and 'z' sounds with the air escaping over the sides of the tongue"
     sounds_affected:
       - "s*"
@@ -296,7 +273,6 @@ error_patterns:
     notes: "Not part of typical speech development. Should acquire sound by 4 years"
 
   interdental_lisp:
-    id: "interdental_lisp"
     description: "Produces the 's' and 'z' sounds with the tongue protruding between the teeth"
     sounds_affected:
       - "s*"
@@ -309,7 +285,6 @@ error_patterns:
     notes: "Can be a normal developmental phase for some children but is expected to resolve by 4½ years of age"
 
   interdental_lisp_extended:
-    id: "interdental_lisp_extended"
     description: "Produces the 's', 't', 'd', 'l' and 'z' sounds with the tongue protruding between the teeth"
     sounds_affected:
       - "s*"
@@ -325,7 +300,6 @@ error_patterns:
     notes: "Articulation error likely due to tongue thrust. Can be a normal developmental phase for some children but is expected to resolve by 4½ years of age"
 
   substitution_error:
-    id: "substitution_error"
     description: "Changes one sound to another sound"
     sounds_affected: []
     examples: []
