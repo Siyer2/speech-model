@@ -48,6 +48,9 @@ wandb/
 
 # Data
 data/
+!data/processed/
+data/processed/*
+!data/processed/utterances.parquet
 *.wav
 *.mp3
 *.flac
