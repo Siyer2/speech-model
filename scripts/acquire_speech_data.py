@@ -1,3 +1,5 @@
+"""TALKBANK_COOKIE="..." uv run python scripts/acquire_speech_data.py"""
+
 import os
 import time
 from pathlib import Path
@@ -9,9 +11,6 @@ from tqdm import tqdm
 TALKBANK_COOKIE = os.getenv("TALKBANK_COOKIE")
 DATA_DIR = Path("data")
 RAW_DIR = DATA_DIR / "raw"
-PROCESSED_DIR = DATA_DIR / "processed"
-PARQUET_PATH = PROCESSED_DIR / "utterances.parquet"
-AUDIO_SEGMENTS_DIR = PROCESSED_DIR / "audio_segments"
 SUMMARY_PATH = DATA_DIR / "summary.json"
 MAX_RETRIES = 3
 DELAY = 2.0
