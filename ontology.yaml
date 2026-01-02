@@ -240,7 +240,7 @@ error_patterns:
     resolution_age_months: null
     notes: "Not part of typical speech development"
 
-  vowel_distortions:
+  vowel_distortions: # get rid: this is a very serious diagnosis
     description: "Inaccurate production of vowel sounds"
     sounds_affected: []
     examples: []
@@ -300,7 +300,7 @@ error_patterns:
     notes: "Articulation error likely due to tongue thrust. Can be a normal developmental phase for some children but is expected to resolve by 4½ years of age"
 
   substitution_error:
-    description: "Changes one sound to another sound"
+    description: "Changes one sound to another sound. Use only when there is no other error pattern (e.g. gliding_r, fronting) to describe this."
     sounds_affected: []
     examples: []
     age_appropriate: null
