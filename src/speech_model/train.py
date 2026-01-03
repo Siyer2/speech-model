@@ -1,47 +1,21 @@
-"""Main training script."""
+"""Main training script with k-fold cross-validation."""
 
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from .config import Config
+from .dataset import SpeechErrorDataset
+from .metrics import aggregate_fold_results, compute_metrics
 from .model import SpeechClassifier
+from .splits import create_participant_aware_folds
 from .wandb_utils import WandBLogger
-
-
-def set_seed(seed: int):
-    """Set random seed for reproducibility."""
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-
-def create_dummy_data(batch_size: int, num_batches: int = 10):
-    """Create dummy data for demonstration.
-
-    Args:
-        batch_size: Batch size
-        num_batches: Number of batches to generate
-
-    Returns:
-        DataLoader with dummy audio features and labels
-    """
-    # Simulate mel spectrogram features: (batch, seq_len=100, features=80)
-    seq_len = 100
-    input_dim = 80
-    num_samples = batch_size * num_batches
-
-    x = torch.randn(num_samples, seq_len, input_dim)
-    # Random labels for 5 classes
-    y = torch.randint(0, 5, (num_samples,))
-
-    dataset = TensorDataset(x, y)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
-    return dataloader
 
 
 def train_epoch(
@@ -50,7 +24,7 @@ def train_epoch(
     criterion: nn.Module,
     optimizer: optim.Optimizer,
     device: torch.device,
-) -> tuple[float, float]:
+) -> float:
     """Train for one epoch.
 
     Args:
@@ -61,44 +35,232 @@ def train_epoch(
         device: Device to train on
 
     Returns:
-        Tuple of (average loss, accuracy)
+        Average loss
     """
     model.train()
     total_loss = 0.0
-    correct = 0
-    total = 0
 
-    for _batch_idx, (inputs, targets) in enumerate(dataloader):
-        inputs, targets = inputs.to(device), targets.to(device)
+    for embeddings, targets, _ in tqdm(dataloader, desc="Training", leave=False):
+        embeddings, targets = embeddings.to(device), targets.to(device)
 
         optimizer.zero_grad()
-        outputs = model(inputs)
+        outputs = model(embeddings)
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
 
         total_loss += loss.item()
-        _, predicted = outputs.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
 
     avg_loss = total_loss / len(dataloader)
-    accuracy = 100.0 * correct / total
+    return avg_loss
 
-    return avg_loss, accuracy
+
+def validate_epoch(
+    model: nn.Module,
+    dataloader: DataLoader,
+    criterion: nn.Module,
+    device: torch.device,
+    threshold: float,
+    class_names: list[str],
+) -> dict:
+    """Validate for one epoch.
+
+    Args:
+        model: Model to validate
+        dataloader: Validation data loader
+        criterion: Loss function
+        device: Device to validate on
+        threshold: Threshold for binary prediction
+        class_names: List of error pattern names
+
+    Returns:
+        Dictionary with validation metrics
+    """
+    model.eval()
+    total_loss = 0.0
+    all_predictions = []
+    all_targets = []
+
+    with torch.no_grad():
+        for embeddings, targets, _ in tqdm(dataloader, desc="Validation", leave=False):
+            embeddings, targets = embeddings.to(device), targets.to(device)
+
+            outputs = model(embeddings)
+            loss = criterion(outputs, targets)
+
+            total_loss += loss.item()
+
+            # Apply sigmoid and threshold for predictions
+            probs = torch.sigmoid(outputs)
+            predictions = (probs > threshold).float()
+
+            all_predictions.append(predictions.cpu().numpy())
+            all_targets.append(targets.cpu().numpy())
+
+    # Compute metrics
+    all_predictions = np.vstack(all_predictions)
+    all_targets = np.vstack(all_targets)
+
+    metrics = compute_metrics(all_predictions, all_targets, class_names)
+    metrics["loss"] = total_loss / len(dataloader)
+
+    return metrics
+
+
+def save_checkpoint(
+    model: nn.Module,
+    config: Config,
+    fold: int,
+    epoch: int,
+    metrics: dict,
+    checkpoint_dir: Path,
+):
+    """Save model checkpoint.
+
+    Args:
+        model: Model to save
+        config: Configuration object
+        fold: Fold number
+        epoch: Epoch number
+        metrics: Validation metrics
+        checkpoint_dir: Directory to save checkpoint
+    """
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = checkpoint_dir / f"fold{fold}_best.pt"
+
+    torch.save(
+        {
+            "model_state_dict": model.state_dict(),
+            "fold": fold,
+            "epoch": epoch,
+            "metrics": metrics,
+            "config": config.to_dict(),
+        },
+        checkpoint_path,
+    )
+
+
+def train_fold(
+    fold_idx: int,
+    train_dataset: SpeechErrorDataset,
+    val_dataset: SpeechErrorDataset,
+    config: Config,
+    device: torch.device,
+    wandb_logger: WandBLogger,
+    global_step: int = 0,
+) -> tuple[dict | None, int]:
+    """Train a single fold.
+
+    Args:
+        fold_idx: Fold index
+        train_dataset: Training dataset
+        val_dataset: Validation dataset
+        config: Configuration object
+        device: Device to train on
+        wandb_logger: WandB logger
+        global_step: Global step counter for logging
+
+    Returns:
+        Tuple of (best validation metrics, updated global_step)
+    """
+    print(f"\n{'=' * 60}")
+    print(f"Fold {fold_idx + 1}/{config.training.k_folds}")
+    print(f"{'=' * 60}")
+
+    # Create data loaders
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=config.training.batch_size,
+        shuffle=True,
+        num_workers=config.training.num_workers,
+        pin_memory=True,  # Add this
+        persistent_workers=True,  # Add this
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=config.training.batch_size,
+        shuffle=False,
+        num_workers=config.training.num_workers,
+        pin_memory=True,  # Add this
+        persistent_workers=True,  # Add this
+    )
+
+    # Create model
+    model = SpeechClassifier(config.model).to(device)
+    print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
+
+    # Setup training
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = optim.Adam(model.parameters(), lr=config.training.learning_rate)
+
+    # Training loop with early stopping
+    best_val_f1 = 0.0
+    best_val_metrics: dict | None = None
+    patience_counter = 0
+
+    for epoch in range(config.training.epochs):
+        print(f"\nEpoch {epoch + 1}/{config.training.epochs}")
+
+        # Train
+        train_loss = train_epoch(model, train_loader, criterion, optimizer, device)
+
+        # Validate
+        val_metrics = validate_epoch(
+            model,
+            val_loader,
+            criterion,
+            device,
+            config.training.threshold,
+            train_dataset.get_label_names(),
+        )
+
+        print(
+            f"Train Loss: {train_loss:.4f} | "
+            f"Val Loss: {val_metrics['loss']:.4f} | "
+            f"Val F1-Macro: {val_metrics['f1_macro']:.4f}"
+        )
+
+        # Log to WandB
+        wandb_logger.log(
+            {
+                f"fold{fold_idx}/train/loss": train_loss,
+                f"fold{fold_idx}/val/loss": val_metrics["loss"],
+                f"fold{fold_idx}/val/f1_macro": val_metrics["f1_macro"],
+            },
+            step=global_step,
+        )
+        global_step += 1
+
+        # Save best model (initialize best_val_metrics on first epoch)
+        if best_val_metrics is None or val_metrics["f1_macro"] > best_val_f1:
+            best_val_f1 = val_metrics["f1_macro"]
+            best_val_metrics = val_metrics
+            patience_counter = 0
+
+            if config.training.save_best_only:
+                checkpoint_dir = Path(config.data.checkpoint_dir)
+                save_checkpoint(model, config, fold_idx, epoch, val_metrics, checkpoint_dir)
+                print(f"✓ Saved best model (F1={best_val_f1:.4f})")
+        else:
+            patience_counter += 1
+
+        # Early stopping
+        if patience_counter >= config.training.early_stopping_patience:
+            print(f"\nEarly stopping triggered after {epoch + 1} epochs")
+            break
+
+    print(f"\nBest validation F1-Macro: {best_val_f1:.4f}")
+    return best_val_metrics, global_step
 
 
 def main():
     """Main training function."""
-    # Load configuration
+    # Load configuration (auto-seeds)
     config_path = Path(__file__).parent.parent.parent / "trains.yaml"
     config = Config.from_yaml(config_path)
 
     print(f"Loaded configuration from {config_path}")
-    print(f"Training for {config.training.epochs} epochs")
-
-    # Set seed
-    set_seed(config.training.seed)
+    print(f"Seed: {config.training.seed} (automatically set)")
 
     # Initialize WandB
     wandb_logger = WandBLogger(config, config_path)
@@ -107,44 +269,100 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # Create model
-    model = SpeechClassifier(config.model).to(device)
-    print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
+    # Load data
+    df = pd.read_parquet(config.data.parquet_path)
+    print(f"\nLoaded {len(df)} utterances from {len(df['participant_id'].unique())} participants")
 
-    # Setup training
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=config.training.learning_rate)
+    # Get embeddings path
+    encoder_name_safe = config.model.encoder_name.replace("/", "_")
+    embeddings_path = Path(config.data.embeddings_dir) / f"{encoder_name_safe}_embeddings.pt"
 
-    # Create dummy data
-    train_loader = create_dummy_data(
-        batch_size=config.training.batch_size,
-        num_batches=20,
-    )
-
-    print("\nStarting training...")
-    print("-" * 50)
-
-    # Training loop
-    for epoch in range(config.training.epochs):
-        loss, accuracy = train_epoch(model, train_loader, criterion, optimizer, device)
-
-        # Log metrics
-        metrics = {
-            "epoch": epoch + 1,
-            "train/loss": loss,
-            "train/accuracy": accuracy,
-        }
-        wandb_logger.log(metrics, step=epoch)
-
-        print(
-            f"Epoch {epoch + 1}/{config.training.epochs} - "
-            f"Loss: {loss:.4f}, Accuracy: {accuracy:.2f}%"
+    if not embeddings_path.exists():
+        raise FileNotFoundError(
+            f"Embeddings not found at {embeddings_path}\n"
+            f"Run: uv run python scripts/compute_embeddings.py"
         )
 
-    print("-" * 50)
-    print("Training complete!")
+    print(f"Using embeddings: {embeddings_path}")
 
-    # Cleanup
+    # Load embeddings and filter dataframe to only include utterances with embeddings
+    embeddings = torch.load(embeddings_path)
+    df = df[df["utterance_id"].isin(embeddings.keys())].reset_index(drop=True)
+    print(f"Using {len(df)} utterances with valid embeddings")
+
+    # Create folds
+    folds = create_participant_aware_folds(df, config.training.k_folds, config.training.seed)
+
+    # Train each fold
+    fold_results = []
+    global_step = 0
+    for fold_idx, (train_indices, val_indices) in enumerate(folds):
+        # Create datasets - pass the pre-filtered dataframe
+        train_dataset = SpeechErrorDataset(
+            df.iloc[train_indices].reset_index(drop=True),
+            str(embeddings_path),
+            config.data.ontology_path,
+        )
+        val_dataset = SpeechErrorDataset(
+            df.iloc[val_indices].reset_index(drop=True),
+            str(embeddings_path),
+            config.data.ontology_path,
+        )
+
+        # Train fold
+        best_metrics, global_step = train_fold(
+            fold_idx, train_dataset, val_dataset, config, device, wandb_logger, global_step
+        )
+        fold_results.append(best_metrics)
+
+    # Aggregate results
+    print(f"\n{'=' * 60}")
+    print("Cross-Validation Results")
+    print(f"{'=' * 60}")
+
+    aggregated = aggregate_fold_results(fold_results)
+    print(f"\nF1-Macro: {aggregated['f1_macro_mean']:.4f} ± {aggregated['f1_macro_std']:.4f}")
+
+    # Aggregate per-class metrics across folds
+    class_names = list(fold_results[0]["per_class"].keys())
+    per_class_f1_aggregated = {}
+
+    for class_name in class_names:
+        # Collect metrics for this class across all folds
+        precisions = []
+        recalls = []
+
+        for fold_result in fold_results:
+            p = fold_result["per_class"][class_name]["precision"]
+            r = fold_result["per_class"][class_name]["recall"]
+            precisions.append(p)
+            recalls.append(r)
+
+        # Average precision and recall across folds
+        avg_precision = np.mean(precisions)
+        avg_recall = np.mean(recalls)
+
+        # Compute F1 from averaged precision and recall
+        if (avg_precision + avg_recall) > 0:
+            avg_f1 = 2 * avg_precision * avg_recall / (avg_precision + avg_recall)
+        else:
+            avg_f1 = 0.0
+
+        per_class_f1_aggregated[class_name] = avg_f1
+
+    # Log aggregated metrics to WandB
+    log_dict = {
+        "cv/f1_macro_mean": aggregated["f1_macro_mean"],
+        "cv/f1_macro_std": aggregated["f1_macro_std"],
+    }
+
+    # Add per-class F1 scores (averaged across folds)
+    for class_name, avg_f1 in per_class_f1_aggregated.items():
+        log_dict[f"cv/per_class/{class_name}/f1"] = avg_f1
+
+    wandb_logger.log(log_dict)
+
+    print("\n✓ Training complete!")
     wandb_logger.finish()
 
 

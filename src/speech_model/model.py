@@ -1,42 +1,9 @@
-"""Simple demo model: encoder + classification head."""
+"""Multilabel classifier for pre-computed embeddings."""
 
 import torch
 import torch.nn as nn
 
 from .config import ModelConfig
-
-
-class SimpleEncoder(nn.Module):
-    """Simple encoder that simulates a pretrained audio encoder."""
-
-    def __init__(self, input_dim: int, output_dim: int):
-        """Initialize encoder.
-
-        Args:
-            input_dim: Input feature dimension
-            output_dim: Output embedding dimension
-        """
-        super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(input_dim, output_dim * 2),
-            nn.ReLU(),
-            nn.Dropout(0.1),
-            nn.Linear(output_dim * 2, output_dim),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass.
-
-        Args:
-            x: Input tensor of shape (batch, seq_len, input_dim)
-
-        Returns:
-            Encoded tensor of shape (batch, output_dim)
-        """
-        # Simple mean pooling over sequence
-        x = self.encoder(x)
-        x = x.mean(dim=1)  # (batch, seq_len, output_dim) -> (batch, output_dim)
-        return x
 
 
 class ClassificationHead(nn.Module):
@@ -72,17 +39,15 @@ class ClassificationHead(nn.Module):
 
 
 class SpeechClassifier(nn.Module):
-    """Complete speech classification model."""
+    """Multilabel classifier for pre-computed embeddings."""
 
-    def __init__(self, config: ModelConfig, input_dim: int = 80):
+    def __init__(self, config: ModelConfig):
         """Initialize speech classifier.
 
         Args:
             config: Model configuration
-            input_dim: Input feature dimension (e.g., mel spectrogram features)
         """
         super().__init__()
-        self.encoder = SimpleEncoder(input_dim, config.encoder_dim)
         self.classifier = ClassificationHead(
             config.encoder_dim,
             config.hidden_dim,
@@ -90,15 +55,13 @@ class SpeechClassifier(nn.Module):
             config.dropout,
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, embeddings: torch.Tensor) -> torch.Tensor:
         """Forward pass.
 
         Args:
-            x: Input tensor of shape (batch, seq_len, input_dim)
+            embeddings: Pre-computed audio embeddings (batch, encoder_dim)
 
         Returns:
-            Logits of shape (batch, num_classes)
+            Logits for multilabel classification (batch, num_classes)
         """
-        embeddings = self.encoder(x)
-        logits = self.classifier(embeddings)
-        return logits
+        return self.classifier(embeddings)
