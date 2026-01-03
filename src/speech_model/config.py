@@ -62,6 +62,7 @@ class DataConfig:
     embeddings_dir: str
     sample_rate: int
     checkpoint_dir: str
+    clean_labels: bool = True  # Remove substitution_error when other patterns exist
 
 
 @dataclass
@@ -141,6 +142,7 @@ class Config:
                 "embeddings_dir": self.data.embeddings_dir,
                 "sample_rate": self.data.sample_rate,
                 "checkpoint_dir": self.data.checkpoint_dir,
+                "clean_labels": self.data.clean_labels,
             },
             "wandb": {
                 "project": self.wandb.project,

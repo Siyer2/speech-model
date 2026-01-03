@@ -302,11 +302,13 @@ def main():
             df.iloc[train_indices].reset_index(drop=True),
             str(embeddings_path),
             config.data.ontology_path,
+            clean_labels=config.data.clean_labels,
         )
         val_dataset = SpeechErrorDataset(
             df.iloc[val_indices].reset_index(drop=True),
             str(embeddings_path),
             config.data.ontology_path,
+            clean_labels=config.data.clean_labels,
         )
 
         # Train fold
