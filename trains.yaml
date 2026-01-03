@@ -1,19 +1,27 @@
 model:
-  encoder_dim: 256
-  hidden_dim: 128
-  num_classes: 5  # e.g., fronting, stopping, gliding, etc.
+  encoder_name: "facebook/wav2vec2-base"
+  encoder_dim: 768  # Determined by wav2vec2-base
+  hidden_dim: 1024
+  num_classes: 26  # Number of error patterns in ontology
   dropout: 0.1
 
 training:
-  batch_size: 16
-  epochs: 10
-  learning_rate: 0.001
+  batch_size: 2048
+  epochs: 200
+  learning_rate: 0.0001
   seed: 42
+  k_folds: 5
+  threshold: 0.3
+  num_workers: 8
+  early_stopping_patience: 100
+  save_best_only: true
 
 data:
-  # Placeholder for future real data paths
-  data_dir: "data/audio"
+  parquet_path: "data/processed/utterances.parquet"
+  ontology_path: "ontology.yaml"
+  embeddings_dir: "data/embeddings"
   sample_rate: 16000
+  checkpoint_dir: "checkpoints"
 
 wandb:
   project: "speech-model"
