@@ -52,6 +52,10 @@ class TrainingConfig:
     num_workers: int
     early_stopping_patience: int
     save_best_only: bool
+    weight_decay: float
+    loss_type: str = "bce"  # "bce" or "focal"
+    focal_alpha: float
+    focal_gamma: float
 
 
 @dataclass
@@ -152,6 +156,10 @@ class Config:
                 "num_workers": self.training.num_workers,
                 "early_stopping_patience": self.training.early_stopping_patience,
                 "save_best_only": self.training.save_best_only,
+                "weight_decay": self.training.weight_decay,
+                "loss_type": self.training.loss_type,
+                "focal_alpha": self.training.focal_alpha,
+                "focal_gamma": self.training.focal_gamma,
             },
             "data": {
                 "parquet_path": self.data.parquet_path,

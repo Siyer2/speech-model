@@ -18,6 +18,23 @@ from .splits import create_participant_aware_folds
 from .wandb_utils import WandBLogger
 
 
+class FocalLoss(nn.Module):
+    """Focal loss for multilabel classification with class imbalance."""
+
+    def __init__(self, alpha: float = 0.25, gamma: float = 2.0):
+        super().__init__()
+        self.alpha: float = alpha
+        self.gamma: float = gamma
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        probs = torch.sigmoid(logits)
+        bce_loss = nn.functional.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+        p_t = probs * targets + (1 - probs) * (1 - targets)
+        focal_term = (1 - p_t) ** self.gamma
+        alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
+        return (alpha_t * focal_term * bce_loss).mean()
+
+
 def train_epoch(
     model: nn.Module,
     dataloader: DataLoader,
@@ -193,8 +210,16 @@ def train_fold(
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
     # Setup training
-    criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=config.training.learning_rate)
+    if config.training.loss_type == "focal":
+        criterion = FocalLoss(alpha=config.training.focal_alpha, gamma=config.training.focal_gamma)
+    else:
+        criterion = nn.BCEWithLogitsLoss()
+    optimizer = optim.AdamW(
+        model.parameters(),
+        lr=config.training.learning_rate,
+        weight_decay=config.training.weight_decay,
+    )
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=10)
 
     # Training loop with early stopping
     best_val_f1 = 0.0
@@ -246,6 +271,9 @@ def train_fold(
                 print(f"✓ Saved best model (F1={best_val_f1:.4f})")
         else:
             patience_counter += 1
+
+        # Step LR scheduler
+        scheduler.step(val_metrics["f1_macro"])
 
         # Early stopping
         if patience_counter >= config.training.early_stopping_patience:
