@@ -19,7 +19,7 @@ from tqdm import tqdm
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from speech_model.config import Config
-from speech_model.encoders import Wav2Vec2Encoder
+from speech_model.encoders import Wav2Vec2Encoder, WavLMEncoder
 
 
 def compute_embeddings(config: Config):
@@ -41,7 +41,11 @@ def compute_embeddings(config: Config):
     print(f"Using device: {device}")
     print(f"Initializing encoder: {config.model.encoder_name}")
 
-    encoder = Wav2Vec2Encoder(model_name=config.model.encoder_name, device=device)
+    # Select encoder based on model name
+    if "wavlm" in config.model.encoder_name.lower():
+        encoder = WavLMEncoder(model_name=config.model.encoder_name, device=device)
+    else:
+        encoder = Wav2Vec2Encoder(model_name=config.model.encoder_name, device=device)
     print(f"Encoder embedding dimension: {encoder.embedding_dim}")
 
     # Compute embeddings

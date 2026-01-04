@@ -1,6 +1,6 @@
 model:
-  encoder_name: "facebook/wav2vec2-base"
-  encoder_dim: 768  # Determined by wav2vec2-base
+  encoder_name: "microsoft/wavlm-large"
+  encoder_dim: 1024  # Determined by wavlm-large
   hidden_dim: 1024
   dropout: 0.1
 
