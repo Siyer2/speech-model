@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from .config import Config
-from .dataset import SpeechErrorDataset
+from .dataset import SpeechErrorDataset, apply_label_merges
 from .metrics import aggregate_fold_results, compute_metrics
 from .model import SpeechClassifier
 from .splits import create_participant_aware_folds
@@ -100,6 +100,9 @@ def validate_epoch(
     # Compute metrics
     all_predictions = np.vstack(all_predictions)
     all_targets = np.vstack(all_targets)
+
+    # Apply hardcoded label merging for metrics
+    all_predictions, all_targets = apply_label_merges(all_predictions, all_targets, class_names)
 
     metrics = compute_metrics(all_predictions, all_targets, class_names)
     metrics["loss"] = total_loss / len(dataloader)

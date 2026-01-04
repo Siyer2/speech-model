@@ -130,7 +130,7 @@ error_patterns:
     resolution_age: "4 years 6 months"
     resolution_age_months: 54
 
-  deaffrication:
+  deaffrication: # important
     description: "Changes a 'j' or 'ch' sound to a fricative or stop"
     sounds_affected:
       - "ch → sh"
@@ -165,15 +165,15 @@ error_patterns:
     resolution_age: "3 years"
     resolution_age_months: 36
 
-  epenthesis:
-    description: "Addition of an unstressed 'e' (schwa)"
-    sounds_affected: []
-    examples:
-      - input: "blue"
-        output: "belue"
-    age_appropriate: true
-    resolution_age: "8 years"
-    resolution_age_months: 96
+  # epenthesis: # not important
+  #   description: "Addition of an unstressed 'e' (schwa)"
+  #   sounds_affected: []
+  #   examples:
+  #     - input: "blue"
+  #       output: "belue"
+  #   age_appropriate: true
+  #   resolution_age: "8 years"
+  #   resolution_age_months: 96
 
   assimilation:
     description: "Changes a sound so it takes on a characteristic of another sound in the word"
@@ -195,15 +195,15 @@ error_patterns:
     resolution_age: "8 years"
     resolution_age_months: 96
 
-  reduplication:
-    description: "Repeats the first syllable as the second syllable"
-    sounds_affected: []
-    examples:
-      - input: "water"
-        output: "wawa"
-    age_appropriate: true
-    resolution_age: "3 years"
-    resolution_age_months: 36
+  # reduplication: # not important
+  #   description: "Repeats the first syllable as the second syllable"
+  #   sounds_affected: []
+  #   examples:
+  #     - input: "water"
+  #       output: "wawa"
+  #   age_appropriate: true
+  #   resolution_age: "3 years"
+  #   resolution_age_months: 36
 
   coalescence:
     description: "Substitutes two sounds with a different sound that still has similar features"
@@ -225,7 +225,7 @@ error_patterns:
     resolution_age_months: null
     notes: "Not part of typical speech development"
 
-  backing:
+  backing: # important
     description: "Changes a 'front' sound to a 'back' sound"
     sounds_affected:
       - "t → k"

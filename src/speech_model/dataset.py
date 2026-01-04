@@ -8,6 +8,53 @@ from torch.utils.data import Dataset
 
 from .data_cleaning import clean_substitution_error
 
+# Hardcoded label merges for training
+LABEL_MERGES = {
+    "interdental_lisp_extended": "interdental_lisp",
+}
+
+
+def apply_label_merges(
+    predictions: np.ndarray,
+    targets: np.ndarray,
+    pattern_ids: list[str],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Apply hardcoded label merges to predictions and targets.
+
+    Args:
+        predictions: Binary predictions (n_samples, n_classes)
+        targets: Ground truth labels (n_samples, n_classes)
+        pattern_ids: List of pattern names in order
+
+    Returns:
+        Tuple of (merged_predictions, merged_targets)
+    """
+    pattern_to_idx = {pattern: idx for idx, pattern in enumerate(pattern_ids)}
+
+    merged_preds = predictions.copy()
+    merged_targets = targets.copy()
+
+    for source, target in LABEL_MERGES.items():
+        if source not in pattern_to_idx or target not in pattern_to_idx:
+            continue
+
+        source_idx = pattern_to_idx[source]
+        target_idx = pattern_to_idx[target]
+
+        # Merge: if source is present, count as target
+        merged_preds[:, target_idx] = np.maximum(
+            merged_preds[:, target_idx], merged_preds[:, source_idx]
+        )
+        merged_targets[:, target_idx] = np.maximum(
+            merged_targets[:, target_idx], merged_targets[:, source_idx]
+        )
+
+        # Zero out source
+        merged_preds[:, source_idx] = 0
+        merged_targets[:, source_idx] = 0
+
+    return merged_preds, merged_targets
+
 
 class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
     """Dataset that loads pre-computed embeddings and labels."""
@@ -71,6 +118,10 @@ class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
         # Apply label cleaning if enabled
         if self.clean_labels:
             error_patterns = clean_substitution_error(error_patterns)
+
+        # Apply hardcoded label merging
+        if isinstance(error_patterns, (list | np.ndarray)):
+            error_patterns = [LABEL_MERGES.get(pattern, pattern) for pattern in error_patterns]
 
         labels = torch.zeros(self.num_classes, dtype=torch.float32)
 
