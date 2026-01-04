@@ -239,15 +239,17 @@ error_patterns:
     resolution_age: null
     resolution_age_months: null
     notes: "Not part of typical speech development"
-
-  vowel_distortions: # get rid: this is a very serious diagnosis
-    description: "Inaccurate production of vowel sounds"
-    sounds_affected: []
-    examples: []
-    age_appropriate: false
-    resolution_age: null
-    resolution_age_months: null
-    notes: "Not part of typical speech development"
+    
+  # Commenting because this is often a side-effect of another condition
+  # As such, this class shows up too often in labels
+  # vowel_distortions: 
+  #   description: "Inaccurate production of vowel sounds"
+  #   sounds_affected: []
+  #   examples: []
+  #   age_appropriate: false
+  #   resolution_age: null
+  #   resolution_age_months: null
+  #   notes: "Not part of typical speech development"
 
   initial_consonant_deletion:
     description: "Deletes the first sound in a word"

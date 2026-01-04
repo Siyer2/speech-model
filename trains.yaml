@@ -2,18 +2,17 @@ model:
   encoder_name: "facebook/wav2vec2-base"
   encoder_dim: 768  # Determined by wav2vec2-base
   hidden_dim: 1024
-  num_classes: 26  # Number of error patterns in ontology
   dropout: 0.1
 
 training:
-  batch_size: 2048
-  epochs: 200
-  learning_rate: 0.0001
+  batch_size: 4096
+  epochs: 1000
+  learning_rate: 0.001
   seed: 42
   k_folds: 5
   threshold: 0.3
   num_workers: 8
-  early_stopping_patience: 100
+  early_stopping_patience: 50
   save_best_only: true
 
 data:
@@ -22,6 +21,7 @@ data:
   embeddings_dir: "data/embeddings"
   sample_rate: 16000
   checkpoint_dir: "checkpoints"
+  clean_labels: true  # Remove substitution_error when other patterns exist
 
 wandb:
   project: "speech-model"

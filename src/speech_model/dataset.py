@@ -6,6 +6,8 @@ import torch
 import yaml
 from torch.utils.data import Dataset
 
+from .data_cleaning import clean_substitution_error
+
 
 class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
     """Dataset that loads pre-computed embeddings and labels."""
@@ -15,6 +17,7 @@ class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
         df: pd.DataFrame,
         embeddings_path: str,
         ontology_path: str,
+        clean_labels: bool = True,
     ):
         """Initialize dataset.
 
@@ -22,8 +25,11 @@ class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
             df: DataFrame with utterance data (already filtered and indexed)
             embeddings_path: Path to pre-computed embeddings .pt file
             ontology_path: Path to ontology.yaml with error patterns
+            clean_labels: If True, apply label cleaning (remove substitution_error
+                         when other patterns exist). Default True.
         """
         self.df = df
+        self.clean_labels = clean_labels
 
         # Load pre-computed embeddings
         self.embeddings = torch.load(embeddings_path)
@@ -61,6 +67,11 @@ class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
 
         # Convert error_patterns to binary multilabel tensor
         error_patterns = row["error_patterns"]
+
+        # Apply label cleaning if enabled
+        if self.clean_labels:
+            error_patterns = clean_substitution_error(error_patterns)
+
         labels = torch.zeros(self.num_classes, dtype=torch.float32)
 
         if isinstance(error_patterns, (list | np.ndarray)):
