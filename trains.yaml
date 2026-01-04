@@ -2,7 +2,6 @@ model:
   encoder_name: "facebook/wav2vec2-base"
   encoder_dim: 768  # Determined by wav2vec2-base
   hidden_dim: 1024
-  num_classes: 26  # Number of error patterns in ontology
   dropout: 0.1
 
 training:

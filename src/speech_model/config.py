@@ -88,6 +88,7 @@ class Config:
         """Load configuration from YAML file and set global seed.
 
         This ensures reproducibility is enforced for ALL experiments.
+        Also derives num_classes from the ontology automatically.
 
         Args:
             yaml_path: Path to YAML configuration file
@@ -102,6 +103,20 @@ class Config:
 
         with open(yaml_path) as f:
             config_dict = yaml.safe_load(f)
+
+        # Load ontology and count error patterns
+        ontology_path = config_dict["data"]["ontology_path"]
+        # Handle relative paths from config file directory
+        if not Path(ontology_path).is_absolute():
+            ontology_path = yaml_path.parent / ontology_path
+
+        with open(ontology_path) as f:
+            ontology = yaml.safe_load(f)
+
+        num_classes = len(ontology["error_patterns"])
+
+        # Add num_classes to model config
+        config_dict["model"]["num_classes"] = num_classes
 
         config = cls(
             model=ModelConfig(**config_dict["model"]),
