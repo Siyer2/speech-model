@@ -36,6 +36,7 @@ class ModelConfig:
     hidden_dim: int
     num_classes: int
     dropout: float
+    num_layers: int
 
 
 @dataclass
@@ -139,6 +140,7 @@ class Config:
                 "hidden_dim": self.model.hidden_dim,
                 "num_classes": self.model.num_classes,
                 "dropout": self.model.dropout,
+                "num_layers": self.model.num_layers,
             },
             "training": {
                 "batch_size": self.training.batch_size,

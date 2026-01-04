@@ -2,10 +2,11 @@ model:
   encoder_name: "microsoft/wavlm-large"
   encoder_dim: 1024  # Determined by wavlm-large
   hidden_dim: 1024
+  num_layers: 3
   dropout: 0.1
 
 training:
-  batch_size: 4096
+  batch_size: 1024
   epochs: 1000
   learning_rate: 0.001
   seed: 42
