@@ -4,7 +4,7 @@ install:
 	uv sync
 
 train:
-	./scripts/train.sh
+	NOTE="$(NOTE)" NAME="$(NAME)" ./scripts/train.sh
 
 test:
 	uv run pytest
