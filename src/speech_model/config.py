@@ -37,6 +37,8 @@ class ModelConfig:
     num_classes: int
     dropout: float
     num_layers: int
+    phonetic_mode: str = "none"  # "none" or "target_only"
+    phonetic_dim: int = 128
 
 
 @dataclass
@@ -53,9 +55,9 @@ class TrainingConfig:
     early_stopping_patience: int
     save_best_only: bool
     weight_decay: float
-    loss_type: str = "bce"  # "bce" or "focal"
     focal_alpha: float
     focal_gamma: float
+    loss_type: str = "bce"  # "bce" or "focal"
 
 
 @dataclass
@@ -145,6 +147,8 @@ class Config:
                 "num_classes": self.model.num_classes,
                 "dropout": self.model.dropout,
                 "num_layers": self.model.num_layers,
+                "phonetic_mode": self.model.phonetic_mode,
+                "phonetic_dim": self.model.phonetic_dim,
             },
             "training": {
                 "batch_size": self.training.batch_size,

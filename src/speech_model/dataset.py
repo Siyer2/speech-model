@@ -13,6 +13,28 @@ LABEL_MERGES = {
     "interdental_lisp_extended": "interdental_lisp",
 }
 
+# Max phonetic sequence length
+MAX_PHONETIC_LEN = 64
+
+
+def phonetic_to_ids(text: str, max_len: int = MAX_PHONETIC_LEN) -> list[int]:
+    """Convert phonetic string to character IDs.
+
+    Args:
+        text: IPA phonetic transcription
+        max_len: Maximum sequence length
+
+    Returns:
+        List of character IDs (0 = padding)
+    """
+    if not isinstance(text, str):
+        text = ""
+    # Simple char-level encoding (ord + 1 to reserve 0 for padding)
+    ids = [min(ord(c) + 1, 511) for c in text[:max_len]]
+    # Pad to max_len
+    ids = ids + [0] * (max_len - len(ids))
+    return ids
+
 
 def apply_label_merges(
     predictions: np.ndarray,
@@ -65,6 +87,7 @@ class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
         embeddings_path: str,
         ontology_path: str,
         clean_labels: bool = True,
+        phonetic_mode: str = "none",
     ):
         """Initialize dataset.
 
@@ -74,9 +97,11 @@ class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
             ontology_path: Path to ontology.yaml with error patterns
             clean_labels: If True, apply label cleaning (remove substitution_error
                          when other patterns exist). Default True.
+            phonetic_mode: "none" or "target_only"
         """
         self.df = df
         self.clean_labels = clean_labels
+        self.phonetic_mode = phonetic_mode
 
         # Load pre-computed embeddings
         self.embeddings = torch.load(embeddings_path)
@@ -104,7 +129,7 @@ class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
             Tuple of (embedding, labels, metadata)
             - embedding: Pre-computed audio embedding tensor (encoder_dim,)
             - labels: Binary multilabel tensor (num_classes,)
-            - metadata: Dict with utterance_id, participant_id, etc.
+            - metadata: Dict with utterance_id, participant_id, phonetic data, etc.
         """
         row = self.df.iloc[index]
         utterance_id = row["utterance_id"]
@@ -137,6 +162,11 @@ class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
             "dataset": row["dataset"],
             "word": row["word"],
         }
+
+        # Add phonetic data based on mode
+        if self.phonetic_mode == "target_only":
+            target_ids = phonetic_to_ids(row.get("target_phonetic", ""))
+            metadata["target_phonetic_ids"] = torch.tensor(target_ids, dtype=torch.long)
 
         return embedding, labels, metadata
 

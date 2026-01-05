@@ -4,6 +4,8 @@ model:
   hidden_dim: 256
   num_layers: 2
   dropout: 0.4
+  phonetic_mode: "target_only"  # "none", "target_only"
+  phonetic_dim: 128
 
 training:
   batch_size: 256
@@ -16,7 +18,7 @@ training:
   num_workers: 8
   early_stopping_patience: 40
   save_best_only: true
-  loss_type: "focal"
+  loss_type: "soft_f1"
   focal_alpha: 0.5   # Higher alpha = more weight on positives (rare classes)
   focal_gamma: 2.0   # Focus on hard examples
 
