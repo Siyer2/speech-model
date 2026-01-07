@@ -1,19 +1,26 @@
 model:
   encoder_name: "microsoft/wavlm-large"
-  encoder_dim: 1024  # Determined by wavlm-large
-  hidden_dim: 1024
-  dropout: 0.1
+  encoder_dim: 1024
+  hidden_dim: 256
+  num_layers: 2
+  dropout: 0.4
+  phonetic_mode: "target_only"  # "none", "target_only"
+  phonetic_dim: 128
 
 training:
-  batch_size: 4096
+  batch_size: 256
   epochs: 1000
   learning_rate: 0.001
+  weight_decay: 0.01
   seed: 42
   k_folds: 5
   threshold: 0.3
   num_workers: 8
-  early_stopping_patience: 50
+  early_stopping_patience: 40
   save_best_only: true
+  loss_type: "bce"
+  focal_alpha: 0.5   # Higher alpha = more weight on positives (rare classes)
+  focal_gamma: 2.0   # Focus on hard examples
 
 data:
   parquet_path: "data/processed/utterances.parquet"
@@ -21,10 +28,9 @@ data:
   embeddings_dir: "data/embeddings"
   sample_rate: 16000
   checkpoint_dir: "checkpoints"
-  clean_labels: true  # Remove substitution_error when other patterns exist
+  clean_labels: true
 
 wandb:
   project: "speech-model"
   entity: siyer22
   enabled: true
-

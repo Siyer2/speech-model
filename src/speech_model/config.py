@@ -36,6 +36,9 @@ class ModelConfig:
     hidden_dim: int
     num_classes: int
     dropout: float
+    num_layers: int
+    phonetic_mode: str = "none"  # "none" or "target_only"
+    phonetic_dim: int = 128
 
 
 @dataclass
@@ -51,6 +54,10 @@ class TrainingConfig:
     num_workers: int
     early_stopping_patience: int
     save_best_only: bool
+    weight_decay: float
+    focal_alpha: float
+    focal_gamma: float
+    loss_type: str = "bce"  # "bce" or "focal"
 
 
 @dataclass
@@ -139,6 +146,9 @@ class Config:
                 "hidden_dim": self.model.hidden_dim,
                 "num_classes": self.model.num_classes,
                 "dropout": self.model.dropout,
+                "num_layers": self.model.num_layers,
+                "phonetic_mode": self.model.phonetic_mode,
+                "phonetic_dim": self.model.phonetic_dim,
             },
             "training": {
                 "batch_size": self.training.batch_size,
@@ -150,6 +160,10 @@ class Config:
                 "num_workers": self.training.num_workers,
                 "early_stopping_patience": self.training.early_stopping_patience,
                 "save_best_only": self.training.save_best_only,
+                "weight_decay": self.training.weight_decay,
+                "loss_type": self.training.loss_type,
+                "focal_alpha": self.training.focal_alpha,
+                "focal_gamma": self.training.focal_gamma,
             },
             "data": {
                 "parquet_path": self.data.parquet_path,

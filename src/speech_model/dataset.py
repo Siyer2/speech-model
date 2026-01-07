@@ -8,6 +8,75 @@ from torch.utils.data import Dataset
 
 from .data_cleaning import clean_substitution_error
 
+# Hardcoded label merges for training
+LABEL_MERGES = {
+    "interdental_lisp_extended": "interdental_lisp",
+}
+
+# Max phonetic sequence length
+MAX_PHONETIC_LEN = 64
+
+
+def phonetic_to_ids(text: str, max_len: int = MAX_PHONETIC_LEN) -> list[int]:
+    """Convert phonetic string to character IDs.
+
+    Args:
+        text: IPA phonetic transcription
+        max_len: Maximum sequence length
+
+    Returns:
+        List of character IDs (0 = padding)
+    """
+    if not isinstance(text, str):
+        text = ""
+    # Simple char-level encoding (ord + 1 to reserve 0 for padding)
+    ids = [min(ord(c) + 1, 511) for c in text[:max_len]]
+    # Pad to max_len
+    ids = ids + [0] * (max_len - len(ids))
+    return ids
+
+
+def apply_label_merges(
+    predictions: np.ndarray,
+    targets: np.ndarray,
+    pattern_ids: list[str],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Apply hardcoded label merges to predictions and targets.
+
+    Args:
+        predictions: Binary predictions (n_samples, n_classes)
+        targets: Ground truth labels (n_samples, n_classes)
+        pattern_ids: List of pattern names in order
+
+    Returns:
+        Tuple of (merged_predictions, merged_targets)
+    """
+    pattern_to_idx = {pattern: idx for idx, pattern in enumerate(pattern_ids)}
+
+    merged_preds = predictions.copy()
+    merged_targets = targets.copy()
+
+    for source, target in LABEL_MERGES.items():
+        if source not in pattern_to_idx or target not in pattern_to_idx:
+            continue
+
+        source_idx = pattern_to_idx[source]
+        target_idx = pattern_to_idx[target]
+
+        # Merge: if source is present, count as target
+        merged_preds[:, target_idx] = np.maximum(
+            merged_preds[:, target_idx], merged_preds[:, source_idx]
+        )
+        merged_targets[:, target_idx] = np.maximum(
+            merged_targets[:, target_idx], merged_targets[:, source_idx]
+        )
+
+        # Zero out source
+        merged_preds[:, source_idx] = 0
+        merged_targets[:, source_idx] = 0
+
+    return merged_preds, merged_targets
+
 
 class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
     """Dataset that loads pre-computed embeddings and labels."""
@@ -18,6 +87,7 @@ class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
         embeddings_path: str,
         ontology_path: str,
         clean_labels: bool = True,
+        phonetic_mode: str = "none",
     ):
         """Initialize dataset.
 
@@ -27,9 +97,11 @@ class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
             ontology_path: Path to ontology.yaml with error patterns
             clean_labels: If True, apply label cleaning (remove substitution_error
                          when other patterns exist). Default True.
+            phonetic_mode: "none" or "target_only"
         """
         self.df = df
         self.clean_labels = clean_labels
+        self.phonetic_mode = phonetic_mode
 
         # Load pre-computed embeddings
         self.embeddings = torch.load(embeddings_path)
@@ -57,7 +129,7 @@ class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
             Tuple of (embedding, labels, metadata)
             - embedding: Pre-computed audio embedding tensor (encoder_dim,)
             - labels: Binary multilabel tensor (num_classes,)
-            - metadata: Dict with utterance_id, participant_id, etc.
+            - metadata: Dict with utterance_id, participant_id, phonetic data, etc.
         """
         row = self.df.iloc[index]
         utterance_id = row["utterance_id"]
@@ -71,6 +143,10 @@ class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
         # Apply label cleaning if enabled
         if self.clean_labels:
             error_patterns = clean_substitution_error(error_patterns)
+
+        # Apply hardcoded label merging
+        if isinstance(error_patterns, (list | np.ndarray)):
+            error_patterns = [LABEL_MERGES.get(pattern, pattern) for pattern in error_patterns]
 
         labels = torch.zeros(self.num_classes, dtype=torch.float32)
 
@@ -86,6 +162,11 @@ class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
             "dataset": row["dataset"],
             "word": row["word"],
         }
+
+        # Add phonetic data based on mode
+        if self.phonetic_mode == "target_only":
+            target_ids = phonetic_to_ids(row.get("target_phonetic", ""))
+            metadata["target_phonetic_ids"] = torch.tensor(target_ids, dtype=torch.long)
 
         return embedding, labels, metadata
 

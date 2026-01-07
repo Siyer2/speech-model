@@ -11,11 +11,55 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from .config import Config
-from .dataset import SpeechErrorDataset
+from .dataset import SpeechErrorDataset, apply_label_merges
 from .metrics import aggregate_fold_results, compute_metrics
 from .model import SpeechClassifier
 from .splits import create_participant_aware_folds
 from .wandb_utils import WandBLogger
+
+
+class FocalLoss(nn.Module):
+    """Focal loss for multilabel classification with class imbalance."""
+
+    def __init__(self, alpha: float = 0.25, gamma: float = 2.0):
+        super().__init__()
+        self.alpha: float = alpha
+        self.gamma: float = gamma
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        probs = torch.sigmoid(logits)
+        bce_loss = nn.functional.binary_cross_entropy_with_logits(logits, targets, reduction="none")
+        p_t = probs * targets + (1 - probs) * (1 - targets)
+        focal_term = (1 - p_t) ** self.gamma
+        alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
+        return (alpha_t * focal_term * bce_loss).mean()
+
+
+class SoftF1Loss(nn.Module):
+    """Differentiable macro F1 loss - directly optimizes the F1 metric."""
+
+    def __init__(self, epsilon: float = 1e-7):
+        super().__init__()
+        self.epsilon: float = epsilon
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        probs = torch.sigmoid(logits)
+
+        # Soft versions of TP, FP, FN per class
+        tp = (probs * targets).sum(dim=0)
+        fp = (probs * (1 - targets)).sum(dim=0)
+        fn = ((1 - probs) * targets).sum(dim=0)
+
+        # Per-class F1
+        precision = tp / (tp + fp + self.epsilon)
+        recall = tp / (tp + fn + self.epsilon)
+        f1 = 2 * precision * recall / (precision + recall + self.epsilon)
+
+        # Macro F1 (average across classes)
+        macro_f1 = f1.mean()
+
+        # Return 1 - F1 as loss (minimize loss = maximize F1)
+        return 1 - macro_f1
 
 
 def train_epoch(
@@ -24,6 +68,7 @@ def train_epoch(
     criterion: nn.Module,
     optimizer: optim.Optimizer,
     device: torch.device,
+    phonetic_mode: str = "none",
 ) -> float:
     """Train for one epoch.
 
@@ -33,6 +78,7 @@ def train_epoch(
         criterion: Loss function
         optimizer: Optimizer
         device: Device to train on
+        phonetic_mode: "none" or "target_only"
 
     Returns:
         Average loss
@@ -40,11 +86,17 @@ def train_epoch(
     model.train()
     total_loss = 0.0
 
-    for embeddings, targets, _ in tqdm(dataloader, desc="Training", leave=False):
+    for embeddings, targets, metadata in tqdm(dataloader, desc="Training", leave=False):
         embeddings, targets = embeddings.to(device), targets.to(device)
 
         optimizer.zero_grad()
-        outputs = model(embeddings)
+
+        target_phonetic = None
+        if phonetic_mode == "target_only":
+            target_phonetic = metadata["target_phonetic_ids"].to(device)
+
+        outputs = model(embeddings, target_phonetic)
+
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
@@ -62,6 +114,7 @@ def validate_epoch(
     device: torch.device,
     threshold: float,
     class_names: list[str],
+    phonetic_mode: str = "none",
 ) -> dict:
     """Validate for one epoch.
 
@@ -70,8 +123,9 @@ def validate_epoch(
         dataloader: Validation data loader
         criterion: Loss function
         device: Device to validate on
-        threshold: Threshold for binary prediction
+        threshold: Fixed threshold for binary prediction
         class_names: List of error pattern names
+        phonetic_mode: "none" or "target_only"
 
     Returns:
         Dictionary with validation metrics
@@ -82,10 +136,15 @@ def validate_epoch(
     all_targets = []
 
     with torch.no_grad():
-        for embeddings, targets, _ in tqdm(dataloader, desc="Validation", leave=False):
+        for embeddings, targets, metadata in tqdm(dataloader, desc="Validation", leave=False):
             embeddings, targets = embeddings.to(device), targets.to(device)
 
-            outputs = model(embeddings)
+            target_phonetic = None
+            if phonetic_mode == "target_only":
+                target_phonetic = metadata["target_phonetic_ids"].to(device)
+
+            outputs = model(embeddings, target_phonetic)
+
             loss = criterion(outputs, targets)
 
             total_loss += loss.item()
@@ -100,6 +159,9 @@ def validate_epoch(
     # Compute metrics
     all_predictions = np.vstack(all_predictions)
     all_targets = np.vstack(all_targets)
+
+    # Apply hardcoded label merging for metrics
+    all_predictions, all_targets = apply_label_merges(all_predictions, all_targets, class_names)
 
     metrics = compute_metrics(all_predictions, all_targets, class_names)
     metrics["loss"] = total_loss / len(dataloader)
@@ -190,19 +252,33 @@ def train_fold(
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
     # Setup training
-    criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=config.training.learning_rate)
+    if config.training.loss_type == "focal":
+        criterion = FocalLoss(alpha=config.training.focal_alpha, gamma=config.training.focal_gamma)
+    elif config.training.loss_type == "soft_f1":
+        criterion = SoftF1Loss()
+    else:
+        criterion = nn.BCEWithLogitsLoss()
+    optimizer = optim.AdamW(
+        model.parameters(),
+        lr=config.training.learning_rate,
+        weight_decay=config.training.weight_decay,
+    )
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=10)
 
     # Training loop with early stopping
     best_val_f1 = 0.0
     best_val_metrics: dict | None = None
     patience_counter = 0
 
+    phonetic_mode = config.model.phonetic_mode
+
     for epoch in range(config.training.epochs):
         print(f"\nEpoch {epoch + 1}/{config.training.epochs}")
 
         # Train
-        train_loss = train_epoch(model, train_loader, criterion, optimizer, device)
+        train_loss = train_epoch(
+            model, train_loader, criterion, optimizer, device, phonetic_mode=phonetic_mode
+        )
 
         # Validate
         val_metrics = validate_epoch(
@@ -212,6 +288,7 @@ def train_fold(
             device,
             config.training.threshold,
             train_dataset.get_label_names(),
+            phonetic_mode=phonetic_mode,
         )
 
         print(
@@ -243,6 +320,9 @@ def train_fold(
                 print(f"✓ Saved best model (F1={best_val_f1:.4f})")
         else:
             patience_counter += 1
+
+        # Step LR scheduler
+        scheduler.step(val_metrics["f1_macro"])
 
         # Early stopping
         if patience_counter >= config.training.early_stopping_patience:
@@ -303,12 +383,14 @@ def main():
             str(embeddings_path),
             config.data.ontology_path,
             clean_labels=config.data.clean_labels,
+            phonetic_mode=config.model.phonetic_mode,
         )
         val_dataset = SpeechErrorDataset(
             df.iloc[val_indices].reset_index(drop=True),
             str(embeddings_path),
             config.data.ontology_path,
             clean_labels=config.data.clean_labels,
+            phonetic_mode=config.model.phonetic_mode,
         )
 
         # Train fold

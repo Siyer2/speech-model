@@ -1,5 +1,6 @@
 """WandB integration utilities."""
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,8 @@ class WandBLogger:
         self.config_path = config_path
         self.enabled = config.wandb.enabled
         self.run = None
+        self.note = os.environ.get("EXPERIMENT_NOTE", "")
+        self.name = os.environ.get("EXPERIMENT_NAME", "")
 
         if self.enabled:
             self._init_wandb()
@@ -32,6 +35,8 @@ class WandBLogger:
             project=self.config.wandb.project,
             entity=self.config.wandb.entity,
             config=self.config.to_dict(),
+            notes=self.note if self.note else None,
+            name=self.name if self.name else None,
         )
 
         # Upload config file as artifact
