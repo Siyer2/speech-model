@@ -261,30 +261,30 @@ error_patterns:
     notes: "Not part of typical speech development"
 
   # Articulation errors
-  lateral_lisp:
-    description: "Produces the 's' and 'z' sounds with the air escaping over the sides of the tongue"
-    sounds_affected:
-      - "s*"
-      - "z*"
-    examples: []
-    error_type: "articulation"
-    age_appropriate: false
-    resolution_age: null
-    resolution_age_months: null
-    acquisition_age: "4 years"
-    notes: "Not part of typical speech development. Should acquire sound by 4 years"
+  # lateral_lisp:
+  #   description: "Produces the 's' and 'z' sounds with the air escaping over the sides of the tongue"
+  #   sounds_affected:
+  #     - "s*"
+  #     - "z*"
+  #   examples: []
+  #   error_type: "articulation"
+  #   age_appropriate: false
+  #   resolution_age: null
+  #   resolution_age_months: null
+  #   acquisition_age: "4 years"
+  #   notes: "Not part of typical speech development. Should acquire sound by 4 years"
 
-  interdental_lisp:
-    description: "Produces the 's' and 'z' sounds with the tongue protruding between the teeth"
-    sounds_affected:
-      - "s*"
-      - "z*"
-    examples: []
-    error_type: "articulation"
-    age_appropriate: false
-    resolution_age: "4.5 years"
-    resolution_age_months: 54
-    notes: "Can be a normal developmental phase for some children but is expected to resolve by 4½ years of age"
+  # interdental_lisp:
+  #   description: "Produces the 's' and 'z' sounds with the tongue protruding between the teeth"
+  #   sounds_affected:
+  #     - "s*"
+  #     - "z*"
+  #   examples: []
+  #   error_type: "articulation"
+  #   age_appropriate: false
+  #   resolution_age: "4.5 years"
+  #   resolution_age_months: 54
+  #   notes: "Can be a normal developmental phase for some children but is expected to resolve by 4½ years of age"
 
   interdental_lisp_extended:
     description: "Produces the 's', 't', 'd', 'l' and 'z' sounds with the tongue protruding between the teeth"

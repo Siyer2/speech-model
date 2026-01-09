@@ -9,9 +9,7 @@ from torch.utils.data import Dataset
 from .data_cleaning import clean_substitution_error
 
 # Hardcoded label merges for training
-LABEL_MERGES = {
-    "interdental_lisp_extended": "interdental_lisp",
-}
+LABEL_MERGES: dict[str, str] = {}
 
 # Max phonetic sequence length
 MAX_PHONETIC_LEN = 64
