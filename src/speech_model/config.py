@@ -39,6 +39,9 @@ class ModelConfig:
     num_layers: int
     phonetic_mode: str = "none"  # "none" or "target_only"
     phonetic_dim: int = 128
+    architecture: str = (
+        "mlp"  # "mlp", "cross_attention", "label_attention", "cross_label_attention"
+    )
 
 
 @dataclass
@@ -58,6 +61,11 @@ class TrainingConfig:
     focal_alpha: float
     focal_gamma: float
     loss_type: str = "bce"  # "bce" or "focal"
+    # Adversarial training for participant-invariant features
+    adversarial_training: bool = False
+    adversarial_lambda: float = 0.1  # Weight for adversarial loss
+    adversarial_warmup_epochs: int = 10  # Epochs before full adversarial strength
+    mixup_alpha: float = 0.0  # Mixup augmentation (0 = disabled)
 
 
 @dataclass
@@ -149,6 +157,7 @@ class Config:
                 "num_layers": self.model.num_layers,
                 "phonetic_mode": self.model.phonetic_mode,
                 "phonetic_dim": self.model.phonetic_dim,
+                "architecture": self.model.architecture,
             },
             "training": {
                 "batch_size": self.training.batch_size,
@@ -164,6 +173,10 @@ class Config:
                 "loss_type": self.training.loss_type,
                 "focal_alpha": self.training.focal_alpha,
                 "focal_gamma": self.training.focal_gamma,
+                "adversarial_training": self.training.adversarial_training,
+                "adversarial_lambda": self.training.adversarial_lambda,
+                "adversarial_warmup_epochs": self.training.adversarial_warmup_epochs,
+                "mixup_alpha": self.training.mixup_alpha,
             },
             "data": {
                 "parquet_path": self.data.parquet_path,

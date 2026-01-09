@@ -12,8 +12,8 @@ from tqdm import tqdm
 
 from .config import Config
 from .dataset import SpeechErrorDataset, apply_label_merges
-from .metrics import aggregate_fold_results, compute_metrics
-from .model import SpeechClassifier
+from .metrics import aggregate_fold_results, compute_metrics, compute_participant_level_metrics
+from .model import ParticipantClassifier, SpeechClassifier
 from .splits import create_participant_aware_folds
 from .wandb_utils import WandBLogger
 
@@ -33,6 +33,39 @@ class FocalLoss(nn.Module):
         focal_term = (1 - p_t) ** self.gamma
         alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
         return (alpha_t * focal_term * bce_loss).mean()
+
+
+def mixup_data(embeddings: torch.Tensor, targets: torch.Tensor, alpha: float = 0.2):
+    """Apply mixup augmentation to embeddings and multilabel targets.
+
+    Mixup creates virtual training examples by linearly interpolating
+    between pairs of examples and their labels.
+
+    Args:
+        embeddings: Input embeddings (batch, dim)
+        targets: Multilabel targets (batch, num_classes)
+        alpha: Beta distribution parameter (higher = more mixing)
+
+    Returns:
+        Mixed embeddings, mixed targets, lambda value
+    """
+    if alpha <= 0:
+        return embeddings, targets, 1.0
+
+    # Sample lambda from Beta distribution
+    lam = np.random.beta(alpha, alpha)
+
+    batch_size = embeddings.size(0)
+    # Random permutation for mixing pairs
+    index = torch.randperm(batch_size, device=embeddings.device)
+
+    # Mix embeddings
+    mixed_embeddings = lam * embeddings + (1 - lam) * embeddings[index]
+
+    # For multilabel: use soft labels (convex combination)
+    mixed_targets = lam * targets + (1 - lam) * targets[index]
+
+    return mixed_embeddings, mixed_targets, lam
 
 
 class SoftF1Loss(nn.Module):
@@ -69,7 +102,11 @@ def train_epoch(
     optimizer: optim.Optimizer,
     device: torch.device,
     phonetic_mode: str = "none",
-) -> float:
+    participant_classifier: nn.Module | None = None,
+    participant_to_idx: dict | None = None,
+    adversarial_lambda: float = 0.0,
+    mixup_alpha: float = 0.0,
+) -> tuple[float, float]:
     """Train for one epoch.
 
     Args:
@@ -79,15 +116,27 @@ def train_epoch(
         optimizer: Optimizer
         device: Device to train on
         phonetic_mode: "none" or "target_only"
+        participant_classifier: Optional participant classifier for adversarial training
+        participant_to_idx: Mapping from participant_id to index
+        adversarial_lambda: Lambda value for gradient reversal (0 = no adversarial)
+        mixup_alpha: Mixup augmentation parameter (0 = disabled)
 
     Returns:
-        Average loss
+        Tuple of (average task loss, average adversarial loss)
     """
     model.train()
+    if participant_classifier is not None:
+        participant_classifier.train()
+
     total_loss = 0.0
+    total_adv_loss = 0.0
 
     for embeddings, targets, metadata in tqdm(dataloader, desc="Training", leave=False):
         embeddings, targets = embeddings.to(device), targets.to(device)
+
+        # Apply mixup augmentation
+        if mixup_alpha > 0:
+            embeddings, targets, _ = mixup_data(embeddings, targets, mixup_alpha)
 
         optimizer.zero_grad()
 
@@ -97,14 +146,36 @@ def train_epoch(
 
         outputs = model(embeddings, target_phonetic)
 
-        loss = criterion(outputs, targets)
+        # Task loss
+        task_loss = criterion(outputs, targets)
+
+        # Adversarial loss (if enabled)
+        adv_loss = torch.tensor(0.0, device=device)
+        if participant_classifier is not None and adversarial_lambda > 0:
+            # Get features for adversarial classification
+            features = model.get_features(embeddings, target_phonetic)
+            # Get participant indices
+            participant_ids = metadata["participant_id"]
+            participant_indices = torch.tensor(
+                [participant_to_idx[pid] for pid in participant_ids],
+                dtype=torch.long,
+                device=device
+            )
+            # Forward through participant classifier with gradient reversal
+            participant_logits = participant_classifier(features, lambda_val=adversarial_lambda)
+            adv_loss = nn.functional.cross_entropy(participant_logits, participant_indices)
+
+        # Total loss
+        loss = task_loss + adv_loss
         loss.backward()
         optimizer.step()
 
-        total_loss += loss.item()
+        total_loss += task_loss.item()
+        total_adv_loss += adv_loss.item()
 
     avg_loss = total_loss / len(dataloader)
-    return avg_loss
+    avg_adv_loss = total_adv_loss / len(dataloader)
+    return avg_loss, avg_adv_loss
 
 
 def validate_epoch(
@@ -251,6 +322,28 @@ def train_fold(
     model = SpeechClassifier(config.model).to(device)
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
+    # Setup adversarial training if enabled
+    participant_classifier = None
+    participant_to_idx = None
+    if config.training.adversarial_training:
+        # Get unique participants from training set
+        participant_ids = train_dataset.df["participant_id"].unique().tolist()
+        num_participants = len(participant_ids)
+        participant_to_idx = {pid: i for i, pid in enumerate(participant_ids)}
+
+        # Determine feature dimension based on architecture
+        if config.model.phonetic_mode == "target_only":
+            feature_dim = config.model.encoder_dim + config.model.phonetic_dim
+        else:
+            feature_dim = config.model.encoder_dim
+
+        participant_classifier = ParticipantClassifier(
+            input_dim=feature_dim,
+            num_participants=num_participants,
+            hidden_dim=128,
+        ).to(device)
+        print(f"Adversarial training enabled: {num_participants} participants")
+
     # Setup training
     if config.training.loss_type == "focal":
         criterion = FocalLoss(alpha=config.training.focal_alpha, gamma=config.training.focal_gamma)
@@ -258,8 +351,14 @@ def train_fold(
         criterion = SoftF1Loss()
     else:
         criterion = nn.BCEWithLogitsLoss()
+
+    # Optimizer includes participant classifier if used
+    params = list(model.parameters())
+    if participant_classifier is not None:
+        params += list(participant_classifier.parameters())
+
     optimizer = optim.AdamW(
-        model.parameters(),
+        params,
         lr=config.training.learning_rate,
         weight_decay=config.training.weight_decay,
     )
@@ -271,13 +370,29 @@ def train_fold(
     patience_counter = 0
 
     phonetic_mode = config.model.phonetic_mode
+    mixup_alpha = config.training.mixup_alpha
 
     for epoch in range(config.training.epochs):
         print(f"\nEpoch {epoch + 1}/{config.training.epochs}")
 
+        # Compute adversarial lambda with warmup
+        adv_lambda = 0.0
+        if config.training.adversarial_training:
+            warmup = config.training.adversarial_warmup_epochs
+            if epoch < warmup:
+                # Linear warmup
+                adv_lambda = config.training.adversarial_lambda * (epoch / warmup)
+            else:
+                adv_lambda = config.training.adversarial_lambda
+
         # Train
-        train_loss = train_epoch(
-            model, train_loader, criterion, optimizer, device, phonetic_mode=phonetic_mode
+        train_loss, adv_loss = train_epoch(
+            model, train_loader, criterion, optimizer, device,
+            phonetic_mode=phonetic_mode,
+            participant_classifier=participant_classifier,
+            participant_to_idx=participant_to_idx,
+            adversarial_lambda=adv_lambda,
+            mixup_alpha=mixup_alpha,
         )
 
         # Validate

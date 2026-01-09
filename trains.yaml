@@ -6,6 +6,7 @@ model:
   dropout: 0.4
   phonetic_mode: "target_only"  # "none", "target_only"
   phonetic_dim: 128
+  architecture: "cross_attention"  # "mlp", "cross_attention", "bidirectional_attention", "label_attention"
 
 training:
   batch_size: 256
@@ -21,6 +22,10 @@ training:
   loss_type: "bce"
   focal_alpha: 0.5   # Higher alpha = more weight on positives (rare classes)
   focal_gamma: 2.0   # Focus on hard examples
+  adversarial_training: true  # Enable participant-invariant features
+  adversarial_lambda: 0.1      # Weight for adversarial loss
+  adversarial_warmup_epochs: 10  # Epochs before full adversarial strength
+  mixup_alpha: 0.0  # Mixup augmentation (0 = disabled, 0.2-0.4 typical)
 
 data:
   parquet_path: "data/processed/utterances.parquet"
