@@ -140,7 +140,12 @@ def main():
     print(f"Seed: {config.training.seed}")
 
     wandb_logger = WandBLogger(config, config_path)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+
     print(f"Using device: {device}")
 
     # Load data
