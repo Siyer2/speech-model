@@ -234,7 +234,7 @@ def main():
         print(f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val CER: {val_cer:.4f}")
 
         wandb_logger.log(
-            {"train/loss": train_loss, "val/loss": val_loss, "val/cer": val_cer}, step=epoch
+            {"train/loss": train_loss, "val/loss": val_loss, "val/cer": val_cer}, step=global_step
         )
 
         scheduler.step(val_loss)
