@@ -1,175 +1,86 @@
-"""Dataset for loading pre-computed embeddings and labels."""
+from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import torch
-import yaml
+import torchaudio
 from torch.utils.data import Dataset
 
-from .data_cleaning import clean_substitution_error
 
-# Hardcoded label merges for training
-LABEL_MERGES = {
-    "interdental_lisp_extended": "interdental_lisp",
-}
+class Vocab:
+    """Character vocabulary for phonetic transcription. Index 0 is reserved for CTC blank."""
 
-# Max phonetic sequence length
-MAX_PHONETIC_LEN = 64
+    def __init__(self, phones: list[str]):
+        """Initialize vocab from list of phone characters.
 
+        Args:
+            phones: List of unique characters (blank not included)
+        """
+        self.phones = sorted(set(phones))
+        self.phone_to_idx = {p: i + 1 for i, p in enumerate(self.phones)}
+        self.idx_to_phone = {i + 1: p for i, p in enumerate(self.phones)}
 
-def phonetic_to_ids(text: str, max_len: int = MAX_PHONETIC_LEN) -> list[int]:
-    """Convert phonetic string to character IDs.
+    @classmethod
+    def from_texts(cls, texts: list[str]) -> "Vocab":
+        """Build vocab from list of phonetic transcriptions."""
+        chars = set()
+        for text in texts:
+            if isinstance(text, str):
+                chars.update(text)
+        return cls(list(chars))
 
-    Args:
-        text: IPA phonetic transcription
-        max_len: Maximum sequence length
+    @property
+    def size(self) -> int:
+        """Vocab size including blank token at index 0."""
+        return len(self.phones) + 1
 
-    Returns:
-        List of character IDs (0 = padding)
-    """
-    if not isinstance(text, str):
-        text = ""
-    # Simple char-level encoding (ord + 1 to reserve 0 for padding)
-    ids = [min(ord(c) + 1, 511) for c in text[:max_len]]
-    # Pad to max_len
-    ids = ids + [0] * (max_len - len(ids))
-    return ids
+    def encode(self, text: str) -> list[int]:
+        """Encode text to list of indices."""
+        return [self.phone_to_idx.get(c, 0) for c in text]
 
-
-def apply_label_merges(
-    predictions: np.ndarray,
-    targets: np.ndarray,
-    pattern_ids: list[str],
-) -> tuple[np.ndarray, np.ndarray]:
-    """Apply hardcoded label merges to predictions and targets.
-
-    Args:
-        predictions: Binary predictions (n_samples, n_classes)
-        targets: Ground truth labels (n_samples, n_classes)
-        pattern_ids: List of pattern names in order
-
-    Returns:
-        Tuple of (merged_predictions, merged_targets)
-    """
-    pattern_to_idx = {pattern: idx for idx, pattern in enumerate(pattern_ids)}
-
-    merged_preds = predictions.copy()
-    merged_targets = targets.copy()
-
-    for source, target in LABEL_MERGES.items():
-        if source not in pattern_to_idx or target not in pattern_to_idx:
-            continue
-
-        source_idx = pattern_to_idx[source]
-        target_idx = pattern_to_idx[target]
-
-        # Merge: if source is present, count as target
-        merged_preds[:, target_idx] = np.maximum(
-            merged_preds[:, target_idx], merged_preds[:, source_idx]
-        )
-        merged_targets[:, target_idx] = np.maximum(
-            merged_targets[:, target_idx], merged_targets[:, source_idx]
-        )
-
-        # Zero out source
-        merged_preds[:, source_idx] = 0
-        merged_targets[:, source_idx] = 0
-
-    return merged_preds, merged_targets
+    def decode(self, ids: list[int]) -> str:
+        """Decode indices to text (excludes blank tokens)."""
+        return "".join(self.idx_to_phone.get(i, "") for i in ids if i != 0)
 
 
-class SpeechErrorDataset(Dataset[tuple[torch.Tensor, torch.Tensor, dict]]):
-    """Dataset that loads pre-computed embeddings and labels."""
+class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str]]):
+    """Dataset that loads raw audio and phonetic transcriptions."""
 
     def __init__(
-        self,
-        df: pd.DataFrame,
-        embeddings_path: str,
-        ontology_path: str,
-        clean_labels: bool = True,
-        phonetic_mode: str = "none",
+        self, df: pd.DataFrame, vocab: Vocab, audio_base_path: str, sample_rate: int = 16000
     ):
         """Initialize dataset.
 
         Args:
-            df: DataFrame with utterance data (already filtered and indexed)
-            embeddings_path: Path to pre-computed embeddings .pt file
-            ontology_path: Path to ontology.yaml with error patterns
-            clean_labels: If True, apply label cleaning (remove substitution_error
-                         when other patterns exist). Default True.
-            phonetic_mode: "none" or "target_only"
+            df: DataFrame with audio_path and actual_phonetic columns
+            vocab: Vocabulary for encoding phonetic text
+            audio_base_path: Base path to prepend to audio_path
+            sample_rate: Target sample rate (Wav2Vec2 needs 16kHz)
         """
-        self.df = df
-        self.clean_labels = clean_labels
-        self.phonetic_mode = phonetic_mode
-
-        # Load pre-computed embeddings
-        self.embeddings = torch.load(embeddings_path)
-
-        # Load ontology and create label encoder
-        with open(ontology_path) as f:
-            ontology = yaml.safe_load(f)
-
-        # Create mapping from pattern_id to index
-        self.pattern_ids = sorted(ontology["error_patterns"].keys())
-        self.pattern_to_idx = {pattern: idx for idx, pattern in enumerate(self.pattern_ids)}
-        self.num_classes = len(self.pattern_ids)
+        self.df = df.reset_index(drop=True)
+        self.vocab = vocab
+        self.audio_base_path = Path(audio_base_path)
+        self.sample_rate = sample_rate
 
     def __len__(self) -> int:
-        """Return dataset size."""
         return len(self.df)
 
-    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor, dict]:
-        """Get item at index.
-
-        Args:
-            index: Index into dataset
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, str]:
+        """Get audio and encoded target.
 
         Returns:
-            Tuple of (embedding, labels, metadata)
-            - embedding: Pre-computed audio embedding tensor (encoder_dim,)
-            - labels: Binary multilabel tensor (num_classes,)
-            - metadata: Dict with utterance_id, participant_id, phonetic data, etc.
+            Tuple of (audio_waveform, target_ids, target_text)
         """
-        row = self.df.iloc[index]
-        utterance_id = row["utterance_id"]
+        row = self.df.iloc[idx]
+        audio_path = self.audio_base_path / row["audio_path"]
 
-        # Get pre-computed embedding
-        embedding = self.embeddings[utterance_id]
+        # Load and resample audio
+        waveform, sr = torchaudio.load(audio_path)
+        if sr != self.sample_rate:
+            waveform = torchaudio.functional.resample(waveform, sr, self.sample_rate)
+        waveform = waveform.squeeze(0)  # Remove channel dim
 
-        # Convert error_patterns to binary multilabel tensor
-        error_patterns = row["error_patterns"]
+        # Encode target
+        target_text = row["actual_phonetic"] if isinstance(row["actual_phonetic"], str) else ""
+        target_ids = torch.tensor(self.vocab.encode(target_text), dtype=torch.long)
 
-        # Apply label cleaning if enabled
-        if self.clean_labels:
-            error_patterns = clean_substitution_error(error_patterns)
-
-        # Apply hardcoded label merging
-        if isinstance(error_patterns, (list | np.ndarray)):
-            error_patterns = [LABEL_MERGES.get(pattern, pattern) for pattern in error_patterns]
-
-        labels = torch.zeros(self.num_classes, dtype=torch.float32)
-
-        if isinstance(error_patterns, (list | np.ndarray)):
-            for pattern in error_patterns:
-                if pattern in self.pattern_to_idx:
-                    labels[self.pattern_to_idx[pattern]] = 1.0
-
-        # Metadata for logging/debugging
-        metadata = {
-            "utterance_id": utterance_id,
-            "participant_id": row["participant_id"],
-            "dataset": row["dataset"],
-            "word": row["word"],
-        }
-
-        # Add phonetic data based on mode
-        if self.phonetic_mode == "target_only":
-            target_ids = phonetic_to_ids(row.get("target_phonetic", ""))
-            metadata["target_phonetic_ids"] = torch.tensor(target_ids, dtype=torch.long)
-
-        return embedding, labels, metadata
-
-    def get_label_names(self) -> list[str]:
-        """Return list of error pattern names in order."""
-        return self.pattern_ids
+        return waveform, target_ids, target_text

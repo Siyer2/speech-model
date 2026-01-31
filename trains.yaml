@@ -1,34 +1,21 @@
 model:
-  encoder_name: "microsoft/wavlm-large"
-  encoder_dim: 1024
-  hidden_dim: 256
-  num_layers: 2
-  dropout: 0.4
-  phonetic_mode: "target_only"  # "none", "target_only"
-  phonetic_dim: 128
+  encoder_name: "facebook/wav2vec2-base"
 
 training:
-  batch_size: 256
-  epochs: 1000
+  batch_size: 8
+  epochs: 100
   learning_rate: 0.001
   weight_decay: 0.01
   seed: 42
-  k_folds: 5
-  threshold: 0.3
-  num_workers: 8
-  early_stopping_patience: 40
-  save_best_only: true
-  loss_type: "bce"
-  focal_alpha: 0.5   # Higher alpha = more weight on positives (rare classes)
-  focal_gamma: 2.0   # Focus on hard examples
+  val_split: 0.2
+  num_workers: 4
+  early_stopping_patience: 10
 
 data:
   parquet_path: "data/processed/utterances.parquet"
-  ontology_path: "ontology.yaml"
-  embeddings_dir: "data/embeddings"
-  sample_rate: 16000
+  audio_base_path: "data"
   checkpoint_dir: "checkpoints"
-  clean_labels: true
+  sample_rate: 16000
 
 wandb:
   project: "speech-model"
