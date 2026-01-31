@@ -1,0 +1,326 @@
+IPA_Number,Symbol,Symbol_Name,Description,Voicing,Place_of_Articulation,Manner_of_Articulation,Height,Backness,Rounding,Status,UCS_Code,AFII_Code
+101,p,lower-case P,,voiceless,bilabial,plosive,,,,,0070,E2A2
+102,b,lower-case B,,voiced,bilabial,plosive,,,,,0062,E2A3
+103,t,lower-case T,,voiceless,dental;alveolar,plosive,,,,,0074,E2B0
+104,d,lower-case D,,voiced,dental;alveolar,plosive,,,,,0064,E2B1
+105,ʈ,right-tail T,,voiceless,retroflex,plosive,,,,,0288,E2C7
+106,ɖ,right-tail D,,voiced,retroflex,plosive,,,,,0256,E2C8
+107,c,lower-case C,,voiceless,palatal,plosive,,,,,0063,E2D8
+108,ɟ,barred dotless J,,voiced,palatal,plosive,,,,,025F,E2D9
+109,k,lower-case K,,voiceless,velar,plosive,,,,,006B,E2DE
+110,ɡ,opentail G,,voiced,velar,plosive,,,,equivalent to 210,0261,E2DF
+111,q,lower-case Q,,voiceless,uvular,plosive,,,,,0071,E2E6
+112,ɢ,small capital G,,voiced,uvular,plosive,,,,,0262,E2E7
+113,ʔ,glottal stop,,,glottal,plosive,,,,,0294,E2ED
+114,m,lower-case M,,voiced,bilabial,nasal,,,,,006D,E2A1
+115,ɱ,left-tail M (at right),,voiced,labiodental,nasal,,,,,0271,E2AB
+116,n,lower-case N,,voiced,dental;alveolar,nasal,,,,,006E,E2AF
+117,ɳ,right-tail N,,voiced,retroflex,nasal,,,,,0273,E2C6
+118,ɲ,left-tail N (at left),,voiced,palatal,nasal,,,,,0272,E2D7
+119,ŋ,eng,,voiced,velar,nasal,,,,,014B,E2DD
+120,ɴ,small capital N,,voiced,uvular,nasal,,,,,0274,E2E4
+121,ʙ,small capital B,,voiced,bilabial,trill,,,,,0299,E2F0
+122,r,lower-case R,,voiced,dental;alveolar,trill,,,,,0072,E2C0
+123,ʀ,small capital R,,voiced,uvular,trill,,,,,0280,E2EA
+124,ɾ,fish-hook R,,voiced,dental;alveolar,tap,,,,,027E,E2C1
+125,ɽ,right-tail R,,voiced,retroflex,flap,,,,,027D,E2CD
+126,ɸ,phi,,voiceless,bilabial,fricative,,,,,0278,E2A4
+127,β,beta,,voiced,bilabial,fricative,,,,,03B2,E2A5
+128,f,lower-case F,,voiceless,labiodental,fricative,,,,,0066,E2AC
+129,v,lower-case V,,voiced,labiodental,fricative,,,,,0076,E2AD
+130,θ,theta,,voiceless,dental,fricative,,,,,03B8,E2B2
+131,ð,eth,,voiced,dental,fricative,,,,,00F0,E2B3
+132,s,lower-case S,,voiceless,alveolar,fricative,,,,,0073,E2B6
+133,z,lower-case Z,,voiced,alveolar,fricative,,,,,007A,E2B7
+134,ʃ,esh,,voiceless,postalveolar,fricative,,,,,0283,E2D0
+135,ʒ,ezh;tailed Z,,voiced,postalveolar,fricative,,,,,0292,E2D1
+136,ʂ,right-tail S (at left),,voiceless,retroflex,fricative,,,,,0282,E2C9
+137,ʐ,right-tail Z,,voiced,retroflex,fricative,,,,,0290,E2CA
+138,ç,C cedilla,,voiceless,palatal,fricative,,,,,00E7,E2DA
+139,ʝ,curly-tail J,,voiced,palatal,fricative,,,,,029D,E2F3
+140,x,lower-case X,,voiceless,palatal,fricative,,,,,0078,E2E0
+141,ɣ,gamma,,voiced,velar,fricative,,,,,0263,E2E1
+142,χ,chi,,voiceless,uvular,fricative,,,,,03C7,E2E8
+143,ʁ,inverted small capital R,,voiced,uvular,fricative,,,,,0281,E2E9
+144,ħ,barred H,,voiceless,pharyngeal,fricative,,,,,0127,E2EB
+145,ʕ,reversed glottal stop,,voiced,pharyngeal,fricative;approximant,,,,,0295,E2EC
+146,h,lower-case H,,voiceless,glottal,fricative,,,,,0068,E2EE
+147,ɦ,hooktop G,,voiced,glottal,fricative,,,,,0266,E2EF
+148,ɬ,belted L,,voiceless,dental;alveolar,lateral fricative,,,,,026C,E2BB
+149,ɮ,L-ezh ligature,,voiced,dental;alveolar,lateral fricative,,,,,026E,E2BC
+150,ʋ,cursive V,,voiced,labiodental,approximant,,,,,028B,E2AE
+151,ɹ,turned R,,voiced,dental;alveolar,approximant,,,,,0279,E2BA
+152,ɻ,"turned R, right tail",,voiced,retroflex,approximant,,,,,027B,E2CB
+153,j,lower-case J,,voiced,palatal,approximant,,,,,006A,E2DB
+154,ɰ,"turned M, right leg",,voiced,velar,approximant,,,,,0270,E2E2
+155,l,lower-case L,,voiced,dental;alveolar,lateral approximant,,,,,006C,E2BD
+156,ɭ,right-tail L,,voiced,retroflex,lateral approximant,,,,,026D,E2CC
+157,ʎ,turned Y,,voiced,palatal,lateral approximant,,,,,028E,E2DC
+158,ʟ,small capital L,,voiced,velar,lateral approximant,,,,,029F,E2F5
+159,ƥ,hooktop P,,voiceless,bilabial,implosive,,,,withdrawn (1993),01A5,2378
+160,ɓ,hooktop B,,voiced,bilabial,implosive,,,,,0253,E2A9
+161,ƭ,hooktop T,,voiceless,dental;alveolar,implosive,,,,withdrawn (1993),01AD,2379
+162,ɗ,hooktop D,,voiced,dental;alveolar,implosive,,,,,0257,E2C2
+163,ƈ,hooktop C,,voiceless,palatal,implosive,,,,withdrawn (1993),0188,2376
+164,ʄ,hooktop barred dotless J,,voiced,palatal,implosive,,,,,0284,E27C
+165,ƙ,hooktop K,,voiceless,velar,implosive,,,,withdrawn (1993),0199,2363
+166,ɠ,hooktop G,,voiced,velar,implosive,,,,,0260,E27E
+167,ʠ,hooktop Q,,voiceless,uvular,implosive,,,,withdrawn (1993),02A0,E2F6
+168,ʛ,hooktop small capital G,,voiced,uvular,implosive,,,,,029B,E2F1
+169,ʍ,turned W,,voiceless,labial-velar,fricative,,,,,028D,E2A7
+170,w,lower-case W,,voiced,labial-velar,approximant,,,,,0077,E2A8
+171,ɥ,turned H,,voiced,labial-palatal,approximant,,,,,0265,E2A6
+172,ʜ,small capital H,,voiceless,epiglottal,fricative,,,,,029C,E2F2
+173,ʡ,barred glottal stop,,,epiglottal,plosive,,,,,02A1,E2F7
+174,ʢ,barred reversed glottal stop,,voiced,epiglottal,fricative;approximant,,,,,02A2,E2F8
+175,ɧ,hooktop heng,,voiceless,simultaneous postalveolar and velar,fricative,,,,,0267,E2D6
+176,ʘ,bull’s eye,,,bilabial,click,,,,,0298,E2AA
+177,ǀ,pipe,,,dental,click,,,,,01C0,23A6
+178,ǃ,exclamation point,,,(post)alveolar,click,,,,,01C3,23A5
+179,ǂ,double-barred pipe,,,palatoalveolar,click,,,,,01C2,23A4
+180,ǁ,double pipe,,,alveolar,lateral click,,,,,01C1,23A7
+181,ɺ,turned long-leg R,,voiced,alveolar,lateral flap,,,,,027A,E2BF
+182,ɕ,curly-tail C,,voiceless,alveolo-palatal,fricative,,,,,0255,E2CE
+183,ʑ,curly-tail Z,,voiced,alveolo-palatal,fricative,,,,,0291,E2CF
+184,ⱱ,right-hook V,,voiced,labiodental,flap,,,,adopted (2005),2C71,
+201,ʇ,turned T,,,dental,click,,,,superseded by 177 (1989),0287,E2C3
+202,ʗ,stretched C,,,postalveolar,click,,,,superseded by 178 (1989),0297,E2C4
+203,ʖ,inverted glottal stop,,,alveolar,lateral click,,,,superseded by 180 (1989),0296,E2C5
+204,ʆ,curly-tail esh,,,,,,,,withdrawn (1989),0286,E2D2
+205,ʓ,curly-tail ezh,,,,,,,,withdrawn (1989),0293,E2D3
+206,ɼ,long-leg R,,,,,,,,withdrawn (1989),027C,E2BE
+207,ˢ,superscript S,,,,,,,,withdrawn (1989),02E2,FDA7
+208,ƫ,left-hook T,palatalized,voiceless,dental;alveolar,plosive,,,,withdrawn (1989),01AB,E2A0
+209,ɫ,L with tilde,velarized,voiced,dental;alveolar,lateral approximant,,,,,026B,E27D
+210,g,looptail G,,voiced,velar,plosive,,,,equivalent to 110,0067,E2E3
+211,ʦ,T-S ligature,,voiceless,dental;alveolar,affricate,,,,superseded by 103+132,02A6,E2FC
+212,ʣ,D-Z ligature,,voiced,alveolar,affricate,,,,superseded by 104+133,02A3,E2F9
+213,ʧ,T-esh ligature,,voiceless,postalveolar,affricate,,,,superseded by 103+134,02A7,E2FD
+214,ʤ,D-ezh ligature,,voiced,postalveolar,affricate,,,,superseded by 104+135,02A4,E2FA
+215,ʨ,T-curly-tail-C ligature,,voiceless,alveolo-palatal,affricate,,,,superseded by 103+182,02A8,E2FE
+216,ʥ,D-curly-tail-Z ligature,,voiced,alveolo-palatal,affricate,,,,superseded by 104+183,02A5,E2FB
+217,ᶿ,superscript theta,,voiceless,dental,fricative release,,,,,1DBF,E21B
+218,ᵊ,superscript schwa,,,,release,mid,central,,,1D4A,E21A
+219,ᶑ,hooktop right-tail-D,,voiced,retroflex,implosive,,,,not explicitly IPA approved,1D91,E219
+220,ȶ,curly-tail T,,voiceless,alveolo-palatal,stop,,,,not explicitly IPA approved,0236,
+221,ȡ,curly-tail D,,voiced,alveolo-palatal,stop,,,,not explicitly IPA approved,0221,
+222,ȵ,curly-tail N (at right),,voiced,alveolo-palatal,nasal,,,,not explicitly IPA approved,0235,
+290,ƻ,barred two,,,,,,,,withdrawn (1976),01BB,E2B5
+291,ʞ,turned K,,,,,,,,withdrawn (1979),029E,E2F4
+292,ˣ,superscript X,,voiceless,velar,fricative release,,,,,02E3,D56F
+293,ƞ,"N, right leg",syllabic,,nasal,,,,,withdrawn (1976),019E,E2E5
+294,ƛ,barred lambda,,voiceless,dental;alveolar,lateral affricate,,,,not IPA usage,019B,FD7B
+295,λ,lambda,,voiceless,dental;alveolar,lateral fricative,,,,not IPA usage,03BB,266E
+296,ž,Z wedge,,voiced,postalveolar,,,,,not IPA usage,017E,F1F0
+297,š,S wedge,,voiceless,postalveolar,fricative,,,,not IPA usage,0161,F1DC
+298,ǰ,J wedge,,voiced,postalveolar,affricate,,,,not IPA usage,01F0,E290
+299,č,C wedge,,voiceless,postalveolar,affricate,,,,not IPA usage,010D,F1AE
+301,i,lower-case I,,,,,close,front,unrounded,,0069,E251
+302,e,lower-case E,,,,,close-mid,front,unrounded,,0065,E256
+303,ɛ,epsilon,,,,,open-mid,front,unrounded,,025B,E258
+304,a,lower-case A,,,,,open,front,unrounded,,0061,E25B
+305,ɑ,script A,,,,,open,back,unrounded,,0251,E26C
+306,ɔ,open O,,,,,open-mid,back,rounded,,0254,E26B
+307,o,lower-case O,,,,,close-mid,back,rounded,,006F,E269
+308,u,lower-case U,,,,,close,back,rounded,,0075,E265
+309,y,lower-case Y,,,,,close,front,rounded,,0079,E252
+310,ø,slashed O,,,,,close-mid,front,rounded,,00F8,E257
+311,œ,lower-case O-E ligature,,,,,open-mid,front,rounded,,0153,E259
+312,ɶ,small capital O-E ligature,,,,,open,front,rounded,,0276,E25C
+313,ɒ,turned script A,,,,,open,back,rounded,,0252,E26D
+314,ʌ,turned V,,,,,open-mid,back,unrounded,,028C,E26A
+315,ɤ,ram’s horns,,,,,close-mid,back,unrounded,,0264,E268
+316,ɯ,turned M,,,,,close,back,unrounded,,026F,E264
+317,ɨ,barred I,,,,,close,central,unrounded,,0268,E25D
+318,ʉ,barred U,,,,,close,central,rounded,,0289,E25E
+319,ɪ,small capital I,,,,,near-close,near-front,unrounded,,026A,E254
+320,ʏ,small capital Y,,,,,near-close,near-front,rounded,,028F,E255
+321,ʊ,upsilon,,,,,near-close,near-back,rounded,,028A,E267
+322,ə,schwa,,,,,mid,central,,,0259,E25F
+323,ɵ,barred O,,,,,close-mid,central,rounded,,0275,E261
+324,ɐ,turned A,,,,,near-open,central,,,0250,E263
+325,æ,ash;lower-case A-E ligature,,,,,near-open,front,unrounded,,00E6,E25A
+326,ɜ,reversed epsilon,,,,,open-mid,central,unrounded,,025C,E262
+327,ɚ,right-hook schwa,R-coloured,,,,mid,central,,equivalent to 322+419,025A,E260
+394,ı,undotted I,,,,,,,,not IPA usage,0131,00F5
+395,ɞ,closed reversed epsilon,,,,,open-mid,central,rounded,,025E,E270
+396,ʚ,closed epsilon,,,,,open-mid,central,rounded,superseded by 395 (1996),029A,E273
+397,ɘ,reversed E,,,,,close-mid,central,unrounded,,0258,E26E
+398,ɷ,closed omega,,,,,near-close,near-back,rounded,superseded by 321 (1989),0277,E266
+399,ɩ,iota,,,,,near-close,near-front,unrounded,superseded by 319 (1989),0269,E253
+401,ʼ,apostrophe,,,,ejective,,,,,02BC,E249
+402,̥;̊,under-ring;over-ring,,voiceless,,,,,,,0325;030A,E229;00CA
+403,̬,subscript wedge,,voiced,,,,,,,032C,E22A
+404,ʰ,superscript H,aspirated,,,,,,,,02B0,D565
+405,̤,subscript umlaut,breathy voiced,,,,,,,,0324,E22B
+406,̰,subscript tilde,creaky voiced,,,,,,,,0330,23D8
+407,̼,subscript seagull,linguolabial,,,,,,,,033C,22E8
+408,̪,subscript bridge,dental,,,,,,,,032A,E22C
+409,̺,inverted subscript bridge,apical,,,,,,,,033A,23FD
+410,̻,subscript square,laminal,,,,,,,,033B,23FE
+411,̹,subscript right half-ring,,,,,,,more rounded,,0339,E23C
+412,̜,subscript left half-ring,,,,,,,less rounded,,031C,E232
+413,̟,subscript plus,advanced,,,,,,,,031F,E233
+414,̠,under-bar,retracted,,,,,,,,0320,E234
+415,̈,umlaut,centralized,,,,,,,,0308,E221
+416,̽,over-cross,mid-centralized,,,,,,,,033D,2311
+417,̘,advancing sign,advanced tongue root,,,,,,,,0318,23F7
+418,̙,retracting sign,retracted tongue root,,,,,,,,0319,23F8
+419,˞,right hook,rhoticity,,,,,,,,02DE,E28A
+420,ʷ,superscript W,labialized,,,,,,,,02B7,D56E
+421,ʲ,superscript J,palatalized,,,,,,,,02B2,D567
+422,ˠ,superscript gamma,velarized,,,,,,,,02E0,E28B
+423,ˤ,superscript reversed glottal stop,pharyngealized,,,,,,,,02E4,E28C
+424,̃,superscript tilde,nasalized,,,,,,,,0303,E222
+425,ⁿ,superscript N,,,,nasal release,,,,,207F,FDA8
+426,ˡ,superscript L,,,,lateral release,,,,,02E1,FDA3
+427,̚,corner,no audible release,,,,,,,,031A,23F9
+428,̴,superimposed tilde,velarized;pharyngealized,,,,,,,,0334,E226
+429,̝;˔,raising sign,raised,,,,,,,,031D;02D4,E22F
+430,̞;˕,lowering sign,lowered,,,,,,,,031E;02D5,E231
+431,̩,syllabicity mark,syllabic,,,,,,,,0329,E22E
+432,̯,subscript arch,non-syllabic,,,,,,,,032F,23FA
+433,͡,top tie bar,affricate;double,,,,,,,,0361,E225
+489,̢,subscript right hook,rhoticity,,,,,,,superseded by 419 (1989),0322,E228
+490,˹,open corner,release;burst,,,,,,,not IPA usage,02F9,E218
+491,",",comma,pause (comma),,,,,,,not IPA usage,002C,002C
+492,ʻ,reversed apostrophe,weak aspiration,,,,,,,withdrawn (1979),02BB,00A9
+493,̇,over-dot,palatalization;centralization,,,,,,,withdrawn (1979),0307,E224
+494,˗,minus sign,retracted variety (backed),,,,,,,use 414 or 418 (1989),02D7,E239
+495,˖,plus sign,advanced variety (fronted),,,,,,,use 413 or 417 (1989),02D6,E238
+496,ʸ,superscript Y,high-front rounding;palatalized,,,,,,,not IPA usage,02B8,D570
+497,̣,under-dot,closer variety;fricative,,,,,,,use 429 (1989),0323,E230
+498,̡,subscript left hook,palatalized,,,,,,,superseded by 421 (1989),0321,E227
+499,̫,subscript W,labialized,,,,,,,superseded by 420 (1989),032B,E22D
+501,ˈ,vertical stroke (superior),primary stress,,,,,,,,02C8,E23E
+502,ˌ,vertical stroke (inferior),secondary stress,,,,,,,,02CC,E23F
+503,ː,length mark,long,,,,,,,,02D0,E23A
+504,ˑ,half-length mark,half-long,,,,,,,,02D1,E23B
+505,̆,breve,extra-short,,,,,,,,0306,E223
+506,.,period,syllable break,,,,,,,,002E,002E
+507,|,vertical line (thick),minor (foot) group,,,,,,,,007C,007C
+508,‖,double vertical line (thick),major (intonation) group,,,,,,,,2016,2142
+509,‿,bottom tie bar,linking (absence of a break),,,,,,,,203F,230F
+510,↗,upward diagonal arrow,global rise,,,,,,,,2197,EF3E
+511,↘,downward diagonal arrow,global fall,,,,,,,,2198,EF3D
+512,̋,double acute accent (over),extra high level,,,,,,,,030B,00CD
+513,́,acute accent (over),high level,,,,,,,,0301,00C2
+514,̄,macron,mid level,,,,,,,,0304,00C5
+515,̀,grave accent (over),low level,,,,,,,,0300,00C1
+516,̏,double grave accent (over),extra low level,,,,,,,,030F,23E2
+517,↓,down arrow,downstep,,,,,,,,2193,EEAF
+518,↑,up arrow,upstep,,,,,,,,2191,EEAD
+519,˥,extra-high tone letter,extra high level,,,,,,,,02E5,E28D
+520,˦,high tone letter,high level,,,,,,,,02E6,E28E
+521,˧,mid tone letter,mid level,,,,,,,,02E7,E28F
+522,˨,low tone letter,low level,,,,,,,,02E8,E29F
+523,˩,extra-low tone letter,extra low level,,,,,,,,02E9,E29E
+524,̌,wedge;háček,rising contour,,,,,,,,030C,00CF
+525,̂,circumflex,falling contour,,,,,,,,0302,00C3
+526,᷄,macron plus acute accent,high rising contour,,,,,,,,1DC4,E296
+527,᷅,grave plus acute accent,low rising contour,,,,,,,,1DC5,E297
+528,᷈,grave plus acute plus grave accent,rising-falling contour,,,,,,,,1DC8,E298
+529,˩˥,rising tone letter,rising contour,,,,,,,,02E9+02E5,E299
+530,˥˩,falling tone letter,falling contour,,,,,,,,02E5+02E9,E29A
+531,˦˥,high-rising tone letter,high rising contour,,,,,,,,02E6+02E5,E29B
+532,˩˨,low-rising tone letter,low rising contour,,,,,,,,02E9+02E8,E29C
+533,˧˦˧,rising-falling tone letter,rising-falling contour,,,,,,,,02E7+02E6+02E7,E29D
+595,̑,superscript arch,long falling tone;advanced;palatal,,,,,,,not IPA usage,0311,23F2
+596,ˇ,wedge;háček,falling-rising tone,,,,,,,usage redefined (1989) see 524,02C7,E247
+597,ˆ,circumflex,rising-falling tone,,,,,,,usage redefined (1989) see 525,02C6,E246
+598,̖;ˎ,subscript grave accent,low falling tone,,,,,,,superseded (1989),0316;02CE,E245
+599,̗;ˏ,subscript acute accent,low rising tone,,,,,,,superseded (1989),0317;02CF,E243
+601,ʭ,double bridge,,,bidental,percussive,,,,,02AD,
+602,ʩ,F-eng ligature,,,velopharyngeal,fricative,,,,,02A9,
+603,ʪ,L-S ligature,lateralized [s],,,,,,,,02AA,
+604,ʫ,L-Z ligature,lateralized [z],,,,,,,,02AB,
+611,❍,balloon,unidentified segment(s),,,,,,,,274D,
+612,*,asterisk,placeholder symbol,,,,,,,,002A,
+621,V,upper-case V,voice,,,,,,,equivalent to 722,0056,
+622,F,upper-case F,falsetto,,,,,,,equivalent to 706,0046,
+623,W,upper-case W,whisper,,,,,,,equivalent to 723,0057,
+624,C,upper-case C,creak,,,,,,,equivalent to 703,0043,
+625,L,upper-case L,larynx,,,,,,,equivalent to 712,004C,
+626,J,upper-case J,jaw,,,,,,,equivalent to 710,004A,
+627,Œ,upper-case O-E ligature,oesophageal speech,,,,,,,,0152,
+628,Θ,upper-case Greek theta,protruded-tongue voice,,,,,,,,0398,
+631,(.),bracketed single period,short pause,,,,,,,use 506,0028+002E+0029,
+632,(..),bracketed double period,medium-length pause,,,,,,,use 506,0028+002E+002E+0029,
+633,(...),bracketed triple period,long pause,,,,,,,use 506,0028+002E+002E+002E+0029,
+634,𝆑,forte,loud speech,,,,,,,,1D191,
+635,𝆑𝆑,fortissimo,louder speech,,,,,,,,1D191+1D191,
+636,𝆏,piano,quiet speech,,,,,,,,1D18F,
+637,𝆏𝆏,pianissimo,quieter speech,,,,,,,,1D18F+1D18F,
+638,𝑎𝑙𝑙𝑒𝑔𝑟𝑜,allegro,fast speech,,,,,,,,1D44E+1D459+1D459+1D452+1D454+1D45F+1D45C,
+639,𝑙𝑒𝑛𝑡𝑜,lento,slow speech,,,,,,,,1D459+1D452+1D45B+1D461+1D45C,
+640,1,numeral one,slight degree,,,,,,,,0031,
+641,2,numeral two,moderate degree,,,,,,,,0032,
+642,3,numeral three,extreme degree,,,,,,,,0033,
+651,͆,superscript bridge,dentolabial,,,,,,,,0346,
+652,͍,subscript double arrow,labial spreading,,,,,,,,034D,
+653,̪͆,superscript+subscript bridge,bidental articulation,,,,,,,,0346+032A,
+654,͊,superscript slashed tilde,denasal,,,,,,,,034A,
+655,͋,superscript dotted tilde,nasal escape,,,,,,,,034B,
+656,͌,superscript double tilde,velopharyngeal friction,,,,,,,,034C,
+657,͈,subscript double syllabicity mark,stronger articulation,,,,,,,,0348,
+658,͉,subscript corner,weaker articulation,,,,,,,,0349,
+659,\,backslash,reiterated articulation,,,,,,,,005C,
+660,͎,subscript upward arrow-head,whistled articulation,,,,,,,,034E,
+661,↓,down full arrow,ingressive air flow,,,,,,,,2193,
+662,↑,up full arrow,egressive air flow,,,,,,,,2191,
+663,ˬ,left-sited subscript wedge,pre-voicing,,,,,,,use 403,02EC,
+664,ˬ,right-sited subscript wedge,post-voicing,,,,,,,equivalent to 403,02EC,
+665,₍̬₎,bracketed subscript wedge,partial voicing,,,,,,,,208D+032C+208E,
+666,₍̬,left-bracketed subscript wedge,initial partial voicing,,,,,,,,208D+032C,
+667,̬₎,right-bracketed subscript wedge,final partial voicing,,,,,,,,032C+208E,
+668,₍̥₎,bracketed under-ring,partial devoicing,,,,,,,,208D+0325+208E,
+669,₍̥,left-bracketed under-ring,initial partial devoicing,,,,,,,,208D+0325,
+670,̥₎,right-bracketed under-ring,final partial devoicing,,,,,,,,0325+208E,
+671,ʰ,left-sited superscript H,pre-aspiration,,,,,,,use 404,02B0,
+672,!!,right-sited double exclamation point,ventricular,,,,,,,,0021+0021,
+673,ᶹ,superscript cursive V,labiodentalized,,,,,,,,1DB9,
+674,͢,subscript right arrow,slurred articulation,,,,,,,,0362,
+675,͇,subscript equals sign,alveolarized,,,,,,,,0347,
+676,ʶ,superscript inverted small capital R,uvularized,,,,,,,,02B6,
+677,ꟸ,superscript double-barred H,faucalized,,,,,,,,A7F8,
+678,ꟹ,superscript O-E ligature,labialized: open-rounded,,,,,,,,A7F9,
+679,!,right-sited exclamation point,harsh,,,,,,,,0021,
+680,˭,superscript equals sign,unaspirated,,,,,,,,02ED,
+681,˱,subscript left pointer,laterally offset to the right,,,,,,,,02F1,
+682,˲,subscript right pointer,laterally offset to the left,,,,,,,,02F2,
+683,˷,right-sited subscript tilde,creaky,,,,,,,equivalent to 406,02F7,
+701,A,upper-case A,A,,,,,,,,0041,
+702,B,upper-case B,B,,,,,,,,0042,
+703,C,upper-case C,C (creak),,,,,,,use 624,0043,
+704,D,upper-case D,D,,,,,,,,0044,
+705,E,upper-case E,E,,,,,,,,0045,
+706,F,upper-case F,F (falsetto),,,,,,,use 622,0046,
+707,G,upper-case G,G,,,,,,,,0047,
+708,H,upper-case H,H,,,,,,,,0048,
+709,I,upper-case I,I,,,,,,,,0049,
+710,J,upper-case J,J (jaw),,,,,,,use 626,004A,
+711,K,upper-case K,K,,,,,,,,004B,
+712,L,upper-case L,L (larynx),,,,,,,use 625,004C,
+713,M,upper-case M,M,,,,,,,,004D,
+714,N,upper-case N,N,,,,,,,,004E,
+715,O,upper-case O,O,,,,,,,,004F,
+716,P,upper-case P,P,,,,,,,,0050,
+717,Q,upper-case Q,Q,,,,,,,,0051,
+718,R,upper-case R,R,,,,,,,,0052,
+719,S,upper-case S,S,,,,,,,,0053,
+720,T,upper-case T,T,,,,,,,,0054,
+721,U,upper-case U,U,,,,,,,,0055,
+722,V,upper-case V,V (voice),,,,,,,use 621,0056,
+723,W,upper-case W,W (whisper),,,,,,,use 623,0057,
+724,X,upper-case X,X,,,,,,,,0058,
+725,Y,upper-case Y,Y,,,,,,,,0059,
+726,Z,upper-case Z,Z,,,,,,,,005A,
+901,[,left square bracket,begin phonetic transcription,,,,,,,,005B,005B
+902,],right square bracket,end phonetic transcription,,,,,,,,005D,005D
+903,/,slash,begin phonemic transcription;end phonemic transcription,,,,,,,,002F,002F
+906,(,left parenthesis,indistinguishable utterance (begin),,,,,,,,0028,0028
+907,),right parenthesis,indistinguishable utterance (end),,,,,,,,0029,0029
+908,((,left double parenthesis,sound obscured (begin),,,,,,,,0028+0028,2127
+909,)),right double parenthesis,sound obscured (end),,,,,,,,0029+0029,2128
+910,{,left brace,begin prosodic notation,,,,,,,,007B,007B
+911,},right brace,end prosodic notation,,,,,,,,007D,007D

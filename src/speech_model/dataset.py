@@ -1,3 +1,4 @@
+import logging
 import sys
 from pathlib import Path
 
@@ -15,23 +16,33 @@ if _IS_MAC:
 class Vocab:
     """Character vocabulary for phonetic transcription. Index 0 is reserved for CTC blank."""
 
-    def __init__(self, phones: list[str]):
+    def __init__(self, phones: list[str] | None = None):
         """Initialize vocab from list of phone characters.
 
         Args:
-            phones: List of unique characters (blank not included)
+            phones: List of unique characters (blank not included). If None, loads IPA base vocab.
         """
+        if phones is None:
+            ipa_path = Path(__file__).parent / "ipa-data.csv"
+            ipa_df = pd.read_csv(ipa_path)
+            phones = ipa_df["Symbol"].dropna().tolist()
         self.phones = sorted(set(phones))
         self.phone_to_idx = {p: i + 1 for i, p in enumerate(self.phones)}
         self.idx_to_phone = {i + 1: p for i, p in enumerate(self.phones)}
 
     @classmethod
     def from_texts(cls, texts: list[str]) -> "Vocab":
-        """Build vocab from list of phonetic transcriptions."""
-        chars = set()
+        """Build vocab from list of phonetic transcriptions, starting with IPA base."""
+        base_vocab = cls()  # Load IPA base
+        chars = set(base_vocab.phones)
+
         for text in texts:
             if isinstance(text, str):
-                chars.update(text)
+                new_chars = set(text) - chars
+                if new_chars:
+                    logging.warning(f"Adding phones not in IPA base: {new_chars}")
+                    chars.update(new_chars)
+
         return cls(list(chars))
 
     @property
