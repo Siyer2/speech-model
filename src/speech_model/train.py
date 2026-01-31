@@ -55,13 +55,16 @@ def train_epoch(
     criterion: nn.Module,
     optimizer: optim.Optimizer,
     device: torch.device,
-) -> float:
+    wandb_logger: WandBLogger,
+    global_step: int,
+    log_every: int = 50,
+) -> tuple[float, int]:
     """Train for one epoch."""
     model.train()
     total_loss = 0.0
 
-    for audios, targets, audio_lengths, target_lengths, _ in tqdm(
-        dataloader, desc="Training", leave=False
+    for batch_idx, (audios, targets, audio_lengths, target_lengths, _) in enumerate(
+        tqdm(dataloader, desc="Training", leave=False)
     ):
         audios = audios.to(device)
         targets = targets.to(device)
@@ -87,7 +90,11 @@ def train_epoch(
 
         total_loss += loss.item()
 
-    return total_loss / len(dataloader)
+        if batch_idx % log_every == 0:
+            wandb_logger.log({"train/batch_loss": loss.item()}, step=global_step)
+        global_step += 1
+
+    return total_loss / len(dataloader), global_step
 
 
 def validate_epoch(
@@ -214,11 +221,14 @@ def main():
     best_loss = float("inf")
     patience = 0
     checkpoint_dir = Path(config.data.checkpoint_dir)
+    global_step = 0
 
     for epoch in range(config.training.epochs):
         print(f"\nEpoch {epoch + 1}/{config.training.epochs}")
 
-        train_loss = train_epoch(model, train_loader, criterion, optimizer, device)
+        train_loss, global_step = train_epoch(
+            model, train_loader, criterion, optimizer, device, wandb_logger, global_step
+        )
         val_loss, val_cer = validate_epoch(model, val_loader, criterion, device, vocab)
 
         print(f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val CER: {val_cer:.4f}")
