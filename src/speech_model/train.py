@@ -18,50 +18,6 @@ from .splits import create_participant_aware_folds
 from .wandb_utils import WandBLogger
 
 
-class FocalLoss(nn.Module):
-    """Focal loss for multilabel classification with class imbalance."""
-
-    def __init__(self, alpha: float = 0.25, gamma: float = 2.0):
-        super().__init__()
-        self.alpha: float = alpha
-        self.gamma: float = gamma
-
-    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        probs = torch.sigmoid(logits)
-        bce_loss = nn.functional.binary_cross_entropy_with_logits(logits, targets, reduction="none")
-        p_t = probs * targets + (1 - probs) * (1 - targets)
-        focal_term = (1 - p_t) ** self.gamma
-        alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
-        return (alpha_t * focal_term * bce_loss).mean()
-
-
-class SoftF1Loss(nn.Module):
-    """Differentiable macro F1 loss - directly optimizes the F1 metric."""
-
-    def __init__(self, epsilon: float = 1e-7):
-        super().__init__()
-        self.epsilon: float = epsilon
-
-    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        probs = torch.sigmoid(logits)
-
-        # Soft versions of TP, FP, FN per class
-        tp = (probs * targets).sum(dim=0)
-        fp = (probs * (1 - targets)).sum(dim=0)
-        fn = ((1 - probs) * targets).sum(dim=0)
-
-        # Per-class F1
-        precision = tp / (tp + fp + self.epsilon)
-        recall = tp / (tp + fn + self.epsilon)
-        f1 = 2 * precision * recall / (precision + recall + self.epsilon)
-
-        # Macro F1 (average across classes)
-        macro_f1 = f1.mean()
-
-        # Return 1 - F1 as loss (minimize loss = maximize F1)
-        return 1 - macro_f1
-
-
 def train_epoch(
     model: nn.Module,
     dataloader: DataLoader,
