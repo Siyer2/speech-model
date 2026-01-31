@@ -1,9 +1,15 @@
+import sys
 from pathlib import Path
 
 import pandas as pd
 import torch
 import torchaudio
 from torch.utils.data import Dataset
+
+# TODO: Remove soundfile workaround once torchcodec/ffmpeg issues are resolved on Mac
+_IS_MAC = sys.platform == "darwin"
+if _IS_MAC:
+    import soundfile as sf
 
 
 class Vocab:
@@ -73,11 +79,21 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str]]):
         row = self.df.iloc[idx]
         audio_path = self.audio_base_path / row["audio_path"]
 
-        # Load and resample audio
-        waveform, sr = torchaudio.load(audio_path)
+        # TODO: Remove Mac workaround once torchcodec/ffmpeg issues are resolved
+        # Mac: Use soundfile to bypass torchaudio/torchcodec issues
+        # Linux: Use torchaudio (more efficient, native C++ bindings)
+        if _IS_MAC:
+            data, sr = sf.read(audio_path)
+            waveform = torch.from_numpy(data).float()
+            if waveform.ndim > 1:
+                waveform = waveform.mean(dim=-1)
+        else:
+            waveform, sr = torchaudio.load(audio_path)
+            waveform = waveform.squeeze(0)  # Remove channel dim
+
+        # Resample if needed
         if sr != self.sample_rate:
             waveform = torchaudio.functional.resample(waveform, sr, self.sample_rate)
-        waveform = waveform.squeeze(0)  # Remove channel dim
 
         # Encode target
         target_text = row["actual_phonetic"] if isinstance(row["actual_phonetic"], str) else ""

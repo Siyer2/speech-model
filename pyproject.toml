@@ -17,6 +17,7 @@ dependencies = [
     "pandas>=2.0.0",
     "pyarrow>=14.0.0",
     "pyzmq>=27.1.0",
+    "soundfile>=0.13.1",
 ]
 
 [build-system]

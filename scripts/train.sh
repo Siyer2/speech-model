@@ -9,5 +9,5 @@ fi
 if [ -n "$NAME" ]; then
     echo "Run name: $NAME"
 fi
-EXPERIMENT_NOTE="$NOTE" EXPERIMENT_NAME="$NAME" uv run python -m speech_model.train
+PYTORCH_ENABLE_MPS_FALLBACK=1 EXPERIMENT_NOTE="$NOTE" EXPERIMENT_NAME="$NAME" uv run python -m speech_model.train
 

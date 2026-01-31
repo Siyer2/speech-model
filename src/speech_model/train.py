@@ -72,8 +72,14 @@ def train_epoch(
         # CTC expects (time, batch, vocab)
         log_probs = nn.functional.log_softmax(logits, dim=-1).transpose(0, 1)
 
-        # Compute input lengths (Wav2Vec2 downsamples by ~320x)
-        input_lengths = (audio_lengths / 320).long().clamp(min=1)
+        # Compute input lengths from actual model output, scaled by audio length ratio
+        max_output_len = logits.shape[1]
+        max_audio_len = audios.shape[1]
+        input_lengths = (
+            (audio_lengths.float() / max_audio_len * max_output_len)
+            .long()
+            .clamp(min=1, max=max_output_len)
+        )
 
         loss = criterion(log_probs, targets, input_lengths, target_lengths)
         loss.backward()
@@ -106,7 +112,15 @@ def validate_epoch(
 
             logits = model(audios)
             log_probs = nn.functional.log_softmax(logits, dim=-1).transpose(0, 1)
-            input_lengths = (audio_lengths / 320).long().clamp(min=1)
+
+            # Compute input lengths from actual model output
+            max_output_len = logits.shape[1]
+            max_audio_len = audios.shape[1]
+            input_lengths = (
+                (audio_lengths.float() / max_audio_len * max_output_len)
+                .long()
+                .clamp(min=1, max=max_output_len)
+            )
 
             loss = criterion(log_probs, targets, input_lengths, target_lengths)
             total_loss += loss.item()
