@@ -42,7 +42,7 @@ class Vocab:
         return "".join(self.idx_to_phone.get(i, "") for i in ids if i != 0)
 
 
-class PhoneticDataset(Dataset):
+class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str]]):
     """Dataset that loads raw audio and phonetic transcriptions."""
 
     def __init__(
