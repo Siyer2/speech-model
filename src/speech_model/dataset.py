@@ -73,10 +73,33 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str]]):
             audio_base_path: Base path to prepend to audio_path
             sample_rate: Target sample rate (Wav2Vec2 needs 16kHz)
         """
-        self.df = df.reset_index(drop=True)
         self.vocab = vocab
         self.audio_base_path = Path(audio_base_path)
         self.sample_rate = sample_rate
+
+        # Pre-filter invalid audio files
+        valid_mask = []
+        for _, row in df.iterrows():
+            audio_path = self.audio_base_path / row["audio_path"]
+            try:
+                if _IS_MAC:
+                    info = sf.info(audio_path)
+                    is_valid = info.frames > 0
+                else:
+                    info = torchaudio.info(audio_path)
+                    is_valid = info.num_frames > 0
+            except Exception:
+                is_valid = False
+
+            if not is_valid:
+                logging.warning(f"Filtering invalid audio: {audio_path}")
+            valid_mask.append(is_valid)
+
+        n_filtered = len(df) - sum(valid_mask)
+        if n_filtered > 0:
+            logging.warning(f"Filtered {n_filtered}/{len(df)} invalid audio files")
+
+        self.df = df[valid_mask].reset_index(drop=True)
 
     def __len__(self) -> int:
         return len(self.df)
