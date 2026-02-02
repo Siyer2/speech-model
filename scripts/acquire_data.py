@@ -25,7 +25,7 @@ def get_participant_list(response_text: str) -> list[str]:
     # Find all links where the text ends in .cha
     for link in soup.find_all("a", href=True):
         link_text = link.get_text()
-        if link_text.endswith(".cha"):
+        if link_text.endswith(".cha") or link_text.endswith(".cha?f=open"):
             participant_id = Path(link_text).stem
             participants.append(participant_id)
 
@@ -233,8 +233,8 @@ def main():
         return 1
 
     results = {}
-    # Download single datasets (skip McAllister for now as it only works on Linux)
-    for dataset_name in ["Preston"]:
+    # Download single datasets
+    for dataset_name in ["Preston", "McAllister"]:
         results[dataset_name] = download_single_dataset(dataset_name)
     # Download PERCEPT-GFTA
     for dataset_name in ["PreKHistorySSD", "SuspectedSSD", "TDChildrenandAdults"]:
