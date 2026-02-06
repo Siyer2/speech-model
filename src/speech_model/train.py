@@ -103,12 +103,18 @@ def validate_epoch(
     criterion: nn.Module,
     device: torch.device,
     vocab: Vocab,
+    wandb_logger: WandBLogger | None = None,
+    log_confusion: bool = False,
 ) -> tuple[float, float]:
     """Validate and compute CER."""
     model.eval()
     total_loss = 0.0
     total_cer = 0.0
     num_samples = 0
+
+    # Collect phone-level predictions for confusion matrix
+    all_true_phones = []
+    all_pred_phones = []
 
     with torch.no_grad():
         for audios, targets, audio_lengths, target_lengths, texts in tqdm(
@@ -138,6 +144,23 @@ def validate_epoch(
                 pred_text = ctc_decode(pred[: input_lengths[i]].tolist(), vocab)
                 total_cer += cer(pred_text, target_text)
                 num_samples += 1
+
+                # Collect phone-level data for confusion matrix
+                if log_confusion:
+                    # Simple char-by-char alignment (min length)
+                    min_len = min(len(pred_text), len(target_text))
+                    for j in range(min_len):
+                        true_phone = vocab.phone_to_idx.get(target_text[j], 0)
+                        pred_phone = vocab.phone_to_idx.get(pred_text[j], 0)
+                        if true_phone > 0 and pred_phone > 0:  # Skip blanks
+                            all_true_phones.append(true_phone)
+                            all_pred_phones.append(pred_phone)
+
+    # Log confusion analysis
+    if log_confusion and wandb_logger and len(all_true_phones) > 0:
+        from .metrics import log_topk_confusion_heatmap
+
+        log_topk_confusion_heatmap(all_true_phones, all_pred_phones, vocab, wandb_logger, k=15)
 
     avg_loss = total_loss / len(dataloader)
     avg_cer = total_cer / num_samples if num_samples > 0 else 0.0
@@ -229,7 +252,15 @@ def main():
         train_loss, global_step = train_epoch(
             model, train_loader, criterion, optimizer, device, wandb_logger, global_step
         )
-        val_loss, val_cer = validate_epoch(model, val_loader, criterion, device, vocab)
+        val_loss, val_cer = validate_epoch(
+            model,
+            val_loader,
+            criterion,
+            device,
+            vocab,
+            wandb_logger=wandb_logger,
+            log_confusion=(epoch % 5 == 0),  # Log confusion matrix every 5 epochs
+        )
 
         print(f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val CER: {val_cer:.4f}")
 
