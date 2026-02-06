@@ -39,7 +39,6 @@ DATASET_NAMES = [
     "PD68",
     "PD69",
     "PD71",
-    "McAllister",
 ]
 
 
