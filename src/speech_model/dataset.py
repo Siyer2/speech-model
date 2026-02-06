@@ -127,6 +127,6 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool]]):
         target_text = row["actual_phonetic"] if isinstance(row["actual_phonetic"], str) else ""
         target_ids = torch.tensor(self.vocab.encode(target_text), dtype=torch.long)
 
-        has_errors = len(row["error_patterns"]) > 0
+        has_errors = row["error_patterns"] is not None and len(row["error_patterns"]) > 0
 
         return waveform, target_ids, target_text, has_errors
