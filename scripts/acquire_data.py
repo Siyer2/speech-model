@@ -5,6 +5,8 @@ import time
 from pathlib import Path
 
 import requests
+import soundfile as sf
+import torchaudio
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
@@ -23,7 +25,7 @@ def get_participant_list(response_text: str) -> list[str]:
     # Find all links where the text ends in .cha
     for link in soup.find_all("a", href=True):
         link_text = link.get_text()
-        if link_text.endswith(".cha"):
+        if link_text.endswith(".cha") or link_text.endswith(".cha?f=open"):
             participant_id = Path(link_text).stem
             participants.append(participant_id)
 
@@ -94,10 +96,26 @@ def download_file(url: str, output_path: Path) -> bool:
     return False
 
 
-def download_preston() -> dict:
-    print("Starting Preston dataset download...")
+def convert_mp3_to_wav(mp3_path: Path, wav_path: Path) -> bool:
+    """Convert MP3 to WAV using torchaudio."""
+    try:
+        waveform, sample_rate = torchaudio.load(mp3_path)
+        sf.write(wav_path, waveform.squeeze(0).numpy(), sample_rate)
+        return True
+    except Exception as e:
+        print(f"Failed to convert {mp3_path}: {e}")
+        return False
 
-    url = "https://git.talkbank.org/phon/data-orig/Clinical/Preston"
+
+def download_single_dataset(dataset_name: str) -> dict:
+    output_dir = RAW_DIR / dataset_name
+    if output_dir.exists() and any(output_dir.iterdir()):
+        print(f"{output_dir} already exists and is not empty. Skipping {dataset_name} download.")
+        return {"success": 0, "failed": [], "total": 0}
+
+    print(f"Starting {dataset_name} dataset download...")
+
+    url = f"https://git.talkbank.org/phon/data-orig/Clinical/{dataset_name}"
     payload = ""
     headers = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",  # noqa: E501
@@ -120,19 +138,30 @@ def download_preston() -> dict:
     response = requests.request("GET", url, data=payload, headers=headers)
     participants = get_participant_list(response.text)
 
-    output_dir = RAW_DIR / "Preston"
     success_count = 0
     failed = []
 
-    for participant in tqdm(participants, desc="Preston"):
-        cha_url = f"https://git.talkbank.org/phon/data-orig/Clinical/Preston/{participant}.cha"
-        wav_url = f"https://media.talkbank.org/phon/Clinical/Preston/0wav//{participant}.wav?f=save"
+    for participant in tqdm(participants, desc=dataset_name):
+        cha_url = (
+            f"https://git.talkbank.org/phon/data-orig/Clinical/{dataset_name}/{participant}.cha"
+        )
 
         cha_path = output_dir / f"{participant}.cha"
         wav_path = output_dir / f"{participant}.wav"
 
         cha_ok = download_file(cha_url, cha_path)
-        wav_ok = download_file(wav_url, wav_path)
+
+        if dataset_name == "McAllister":
+            mp3_url = (
+                f"https://media.talkbank.org/phon/Clinical/McAllister/{participant}.mp3?f=save"
+            )
+            mp3_dir = output_dir / "mp3"
+            mp3_path = mp3_dir / f"{participant}.mp3"
+            mp3_ok = download_file(mp3_url, mp3_path)
+            wav_ok = mp3_ok and convert_mp3_to_wav(mp3_path, wav_path)
+        else:
+            wav_url = f"https://media.talkbank.org/phon/Clinical/{dataset_name}/0wav//{participant}.wav?f=save"
+            wav_ok = download_file(wav_url, wav_path)
 
         if cha_ok and wav_ok:
             success_count += 1
@@ -142,10 +171,15 @@ def download_preston() -> dict:
     return {"success": success_count, "failed": failed, "total": len(participants)}
 
 
-def download_percept(dataset_name: str) -> dict:
+def download_dataset(dataset_header: str, dataset_name: str) -> dict:
+    output_dir = RAW_DIR / dataset_name
+    if output_dir.exists() and any(output_dir.iterdir()):
+        print(f"{output_dir} already exists and is not empty. Skipping {dataset_name} download.")
+        return {"success": 0, "failed": [], "total": 0}
+
     print(f"Starting {dataset_name} dataset download...")
 
-    url = f"https://git.talkbank.org/phon/data-orig/Clinical/PERCEPT-GFTA/{dataset_name}"
+    url = f"https://git.talkbank.org/phon/data-orig/Clinical/{dataset_header}/{dataset_name}"
     payload = ""
     headers = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",  # noqa: E501
@@ -168,13 +202,16 @@ def download_percept(dataset_name: str) -> dict:
     response = requests.request("GET", url, data=payload, headers=headers)
     participants = get_participant_list(response.text)
 
-    output_dir = RAW_DIR / dataset_name
     success_count = 0
     failed = []
 
     for participant in tqdm(participants, desc=dataset_name):
-        cha_url = f"https://git.talkbank.org/phon/data-orig/Clinical/PERCEPT-GFTA/{dataset_name}/{participant}.cha?f=save"
-        wav_url = f"https://media.talkbank.org/phon/Clinical/PERCEPT-GFTA/{dataset_name}/{participant}.wav?f=save"
+        cha_url = f"https://git.talkbank.org/phon/data-orig/Clinical/{dataset_header}/{dataset_name}/{participant}.cha?f=save"
+        wav_url = (
+            f"https://media.talkbank.org/phon/Clinical/{dataset_header}/{dataset_name}/{participant}.wav?f=save"
+            if dataset_header == "PERCEPT-GFTA"
+            else f"https://media.talkbank.org/phon/Clinical/{dataset_header}/{dataset_name}/0wav/{participant}.wav?f=save"
+        )
 
         cha_path = output_dir / f"{participant}.cha"
         wav_path = output_dir / f"{participant}.wav"
@@ -196,9 +233,37 @@ def main():
         return 1
 
     results = {}
-    results["Preston"] = download_preston()
+    # Download single datasets
+    for dataset_name in ["Preston", "McAllister"]:
+        results[dataset_name] = download_single_dataset(dataset_name)
+    # Download PERCEPT-GFTA
     for dataset_name in ["PreKHistorySSD", "SuspectedSSD", "TDChildrenandAdults"]:
-        results[dataset_name] = download_percept(dataset_name)
+        results[dataset_name] = download_dataset("PERCEPT-GFTA", dataset_name)
+    # Download Cummings
+    for dataset_name in [
+        "PD01",
+        "PD02",
+        "PD06",
+        "PD08",
+        "PD10",
+        "PD11",
+        "PD13",
+        "PD15",
+        "PD16",
+        "PD21",
+        "PD23",
+        "PD27",
+        "PD28",
+        "PD39",
+        "PD54",
+        "PD55",
+        "PD59",
+        "PD66",
+        "PD68",
+        "PD69",
+        "PD71",
+    ]:
+        results[dataset_name] = download_dataset("Cummings", dataset_name)
 
     total_success = sum(r["success"] for r in results.values())
     total_files = sum(r["total"] for r in results.values())

@@ -11,6 +11,36 @@ PROCESSED_DIR = DATA_DIR / "processed"
 PARQUET_PATH = PROCESSED_DIR / "utterances.parquet"
 AUDIO_SEGMENTS_DIR = PROCESSED_DIR / "audio_segments"
 
+DATASET_NAMES = [
+    "Preston",
+    "McAllister",
+    "PreKHistorySSD",
+    "SuspectedSSD",
+    "TDChildrenandAdults",
+    # Cummings
+    "PD01",
+    "PD02",
+    "PD06",
+    "PD08",
+    "PD10",
+    "PD11",
+    "PD13",
+    "PD15",
+    "PD16",
+    "PD21",
+    "PD23",
+    "PD27",
+    "PD28",
+    "PD39",
+    "PD54",
+    "PD55",
+    "PD59",
+    "PD66",
+    "PD68",
+    "PD69",
+    "PD71",
+]
+
 
 def process_dataset(dataset_name: str, raw_dir: Path, output_dir: Path) -> pd.DataFrame:
     """Process a dataset: parse .cha files and segment audio.
@@ -113,11 +143,18 @@ def process_all_datasets() -> pd.DataFrame:
     Returns:
         Combined DataFrame with all utterances
     """
-    dataset_names = ["Preston", "PreKHistorySSD", "SuspectedSSD", "TDChildrenandAdults"]
 
-    all_dfs = []
+    # Load existing data if parquet exists
+    existing_df = pd.read_parquet(PARQUET_PATH) if PARQUET_PATH.exists() else pd.DataFrame()
+    existing_datasets = set(existing_df["dataset"].unique()) if not existing_df.empty else set()
 
-    for dataset_name in dataset_names:
+    all_dfs = [existing_df] if not existing_df.empty else []
+
+    for dataset_name in DATASET_NAMES:
+        if dataset_name in existing_datasets:
+            print(f"Skipping {dataset_name} (already in parquet)")
+            continue
+
         dataset_raw_dir = RAW_DIR / dataset_name
         if dataset_raw_dir.exists():
             df = process_dataset(dataset_name, dataset_raw_dir, PROCESSED_DIR)
@@ -136,7 +173,7 @@ def process_all_datasets() -> pd.DataFrame:
     print("\n=== Processing Complete ===")
     print(f"Total utterances: {len(combined_df)}")
     print("Utterances by dataset:")
-    for dataset_name in dataset_names:
+    for dataset_name in DATASET_NAMES:
         count = len(combined_df[combined_df["dataset"] == dataset_name])
         print(f"  {dataset_name}: {count}")
 
