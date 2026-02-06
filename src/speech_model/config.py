@@ -24,8 +24,6 @@ def _set_global_seed(seed: int):
 class ModelConfig:
     """Model configuration."""
 
-    encoder_name: str
-
 
 @dataclass
 class TrainingConfig:
@@ -80,7 +78,7 @@ class Config:
             config_dict = yaml.safe_load(f)
 
         config = cls(
-            model=ModelConfig(**config_dict["model"]),
+            model=ModelConfig(**config_dict.get("model", {})),
             training=TrainingConfig(**config_dict["training"]),
             data=DataConfig(**config_dict["data"]),
             wandb=WandBConfig(**config_dict["wandb"]),
@@ -92,7 +90,7 @@ class Config:
     def to_dict(self) -> dict:
         """Convert config to dictionary for logging."""
         return {
-            "model": {"encoder_name": self.model.encoder_name},
+            "model": {},
             "training": {
                 "batch_size": self.training.batch_size,
                 "epochs": self.training.epochs,
