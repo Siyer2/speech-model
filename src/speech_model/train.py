@@ -229,7 +229,7 @@ def main():
     )
 
     # Create model
-    model = SimplePhoneticModel(vocab.size, config.model.encoder_name).to(device)
+    model = SimplePhoneticModel(vocab.size).to(device)
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
 
     criterion = nn.CTCLoss(blank=0, zero_infinity=True)
