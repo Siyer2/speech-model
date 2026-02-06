@@ -8,7 +8,7 @@ class ConvBlock(nn.Module):
     def __init__(self, channels: int, kernel_size: int = 7):
         super().__init__()
         self.conv = nn.Conv1d(channels, channels, kernel_size, padding=kernel_size // 2)
-        self.norm = nn.BatchNorm1d(channels)
+        self.norm = nn.GroupNorm(1, channels)
         self.act = nn.GELU()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -37,6 +37,14 @@ class SimplePhoneticModel(nn.Module):
         )  # total stride = 80
         self.context = nn.Sequential(*[ConvBlock(512) for _ in range(4)])
         self.head = nn.Linear(512, vocab_size)
+
+    def compute_output_lengths(self, audio_lengths: torch.Tensor) -> torch.Tensor:
+        """Compute output sequence lengths from input audio lengths."""
+        lengths = audio_lengths.clone()
+        for module in self.feature_encoder:
+            if isinstance(module, nn.Conv1d):
+                lengths = (lengths - module.kernel_size[0]) // module.stride[0] + 1
+        return lengths.clamp(min=1)
 
     def forward(self, audio: torch.Tensor) -> torch.Tensor:
         """Forward pass.

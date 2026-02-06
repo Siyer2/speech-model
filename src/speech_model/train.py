@@ -34,9 +34,9 @@ def split_by_participant(
 
 def collate_fn(
     batch: list,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list[str]]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list[str], torch.Tensor]:
     """Collate variable-length audio and targets for CTC."""
-    audios, targets, texts = zip(*batch, strict=False)
+    audios, targets, texts, has_errors = zip(*batch, strict=False)
 
     # Pad audio
     audio_lengths = torch.tensor([a.size(0) for a in audios])
@@ -46,11 +46,13 @@ def collate_fn(
     target_lengths = torch.tensor([t.size(0) for t in targets])
     targets_padded = pad_sequence(targets, batch_first=True)
 
-    return audios_padded, targets_padded, audio_lengths, target_lengths, list(texts)
+    has_errors = torch.tensor(has_errors, dtype=torch.bool)
+
+    return audios_padded, targets_padded, audio_lengths, target_lengths, list(texts), has_errors
 
 
 def train_epoch(
-    model: nn.Module,
+    model: SimplePhoneticModel,
     dataloader: DataLoader,
     criterion: nn.Module,
     optimizer: optim.Optimizer,
@@ -63,7 +65,7 @@ def train_epoch(
     model.train()
     total_loss = 0.0
 
-    for batch_idx, (audios, targets, audio_lengths, target_lengths, _) in enumerate(
+    for batch_idx, (audios, targets, audio_lengths, target_lengths, _, _) in enumerate(
         tqdm(dataloader, desc="Training", leave=False)
     ):
         audios = audios.to(device)
@@ -75,14 +77,7 @@ def train_epoch(
         # CTC expects (time, batch, vocab)
         log_probs = nn.functional.log_softmax(logits, dim=-1).transpose(0, 1)
 
-        # Compute input lengths from actual model output, scaled by audio length ratio
-        max_output_len = logits.shape[1]
-        max_audio_len = audios.shape[1]
-        input_lengths = (
-            (audio_lengths.float() / max_audio_len * max_output_len)
-            .long()
-            .clamp(min=1, max=max_output_len)
-        )
+        input_lengths = model.compute_output_lengths(audio_lengths)
 
         loss = criterion(log_probs, targets, input_lengths, target_lengths)
         loss.backward()
@@ -98,26 +93,27 @@ def train_epoch(
 
 
 def validate_epoch(
-    model: nn.Module,
+    model: SimplePhoneticModel,
     dataloader: DataLoader,
     criterion: nn.Module,
     device: torch.device,
     vocab: Vocab,
-    wandb_logger: WandBLogger | None = None,
-    log_confusion: bool = False,
-) -> tuple[float, float]:
-    """Validate and compute CER."""
+) -> tuple[float, float, float]:
+    """Validate and compute CER.
+
+    Returns:
+        Tuple of (avg_loss, avg_cer, avg_cer_errors) where avg_cer_errors is
+        CER computed only on samples with error patterns.
+    """
     model.eval()
     total_loss = 0.0
     total_cer = 0.0
+    total_cer_errors = 0.0
     num_samples = 0
-
-    # Collect phone-level predictions for confusion matrix
-    all_true_phones = []
-    all_pred_phones = []
+    num_error_samples = 0
 
     with torch.no_grad():
-        for audios, targets, audio_lengths, target_lengths, texts in tqdm(
+        for audios, targets, audio_lengths, target_lengths, texts, has_errors in tqdm(
             dataloader, desc="Validation", leave=False
         ):
             audios = audios.to(device)
@@ -126,14 +122,7 @@ def validate_epoch(
             logits = model(audios)
             log_probs = nn.functional.log_softmax(logits, dim=-1).transpose(0, 1)
 
-            # Compute input lengths from actual model output
-            max_output_len = logits.shape[1]
-            max_audio_len = audios.shape[1]
-            input_lengths = (
-                (audio_lengths.float() / max_audio_len * max_output_len)
-                .long()
-                .clamp(min=1, max=max_output_len)
-            )
+            input_lengths = model.compute_output_lengths(audio_lengths)
 
             loss = criterion(log_probs, targets, input_lengths, target_lengths)
             total_loss += loss.item()
@@ -142,29 +131,18 @@ def validate_epoch(
             preds = logits.argmax(dim=-1)  # (batch, time)
             for i, (pred, target_text) in enumerate(zip(preds, texts, strict=False)):
                 pred_text = ctc_decode(pred[: input_lengths[i]].tolist(), vocab)
-                total_cer += cer(pred_text, target_text)
+                sample_cer = cer(pred_text, target_text)
+                total_cer += sample_cer
                 num_samples += 1
 
-                # Collect phone-level data for confusion matrix
-                if log_confusion:
-                    # Simple char-by-char alignment (min length)
-                    min_len = min(len(pred_text), len(target_text))
-                    for j in range(min_len):
-                        true_phone = vocab.phone_to_idx.get(target_text[j], 0)
-                        pred_phone = vocab.phone_to_idx.get(pred_text[j], 0)
-                        if true_phone > 0 and pred_phone > 0:  # Skip blanks
-                            all_true_phones.append(true_phone)
-                            all_pred_phones.append(pred_phone)
-
-    # Log confusion analysis
-    if log_confusion and wandb_logger and len(all_true_phones) > 0:
-        from .metrics import log_topk_confusion_heatmap
-
-        log_topk_confusion_heatmap(all_true_phones, all_pred_phones, vocab, wandb_logger, k=15)
+                if has_errors[i]:
+                    total_cer_errors += sample_cer
+                    num_error_samples += 1
 
     avg_loss = total_loss / len(dataloader)
     avg_cer = total_cer / num_samples if num_samples > 0 else 0.0
-    return avg_loss, avg_cer
+    avg_cer_errors = total_cer_errors / num_error_samples if num_error_samples > 0 else 0.0
+    return avg_loss, avg_cer, avg_cer_errors
 
 
 def save_checkpoint(model: nn.Module, epoch: int, val_loss: float, checkpoint_dir: Path):
@@ -252,20 +230,23 @@ def main():
         train_loss, global_step = train_epoch(
             model, train_loader, criterion, optimizer, device, wandb_logger, global_step
         )
-        val_loss, val_cer = validate_epoch(
-            model,
-            val_loader,
-            criterion,
-            device,
-            vocab,
-            wandb_logger=wandb_logger,
-            log_confusion=(epoch % 5 == 0),  # Log confusion matrix every 5 epochs
+        val_loss, val_cer, val_cer_errors = validate_epoch(
+            model, val_loader, criterion, device, vocab
         )
 
-        print(f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val CER: {val_cer:.4f}")
+        print(
+            f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | "
+            f"Val CER: {val_cer:.4f} | Val CER (errors): {val_cer_errors:.4f}"
+        )
 
         wandb_logger.log(
-            {"train/loss": train_loss, "val/loss": val_loss, "val/cer": val_cer}, step=global_step
+            {
+                "train/loss": train_loss,
+                "val/loss": val_loss,
+                "val/cer": val_cer,
+                "val/cer_errors": val_cer_errors,
+            },
+            step=global_step,
         )
 
         scheduler.step(val_loss)
