@@ -98,12 +98,14 @@ def validate_epoch(
     criterion: nn.Module,
     device: torch.device,
     vocab: Vocab,
-) -> tuple[float, float, float]:
+    max_samples_to_log: int = 10,
+) -> tuple[float, float, float, list[tuple[str, str, float]]]:
     """Validate and compute CER.
 
     Returns:
-        Tuple of (avg_loss, avg_cer, avg_cer_errors) where avg_cer_errors is
-        CER computed only on samples with error patterns.
+        Tuple of (avg_loss, avg_cer, avg_cer_errors, sample_preds) where
+        avg_cer_errors is CER computed only on samples with error patterns,
+        and sample_preds is a list of (pred, target, cer) tuples for logging.
     """
     model.eval()
     total_loss = 0.0
@@ -111,6 +113,7 @@ def validate_epoch(
     total_cer_errors = 0.0
     num_samples = 0
     num_error_samples = 0
+    sample_preds: list[tuple[str, str, float]] = []
 
     with torch.no_grad():
         for audios, targets, audio_lengths, target_lengths, texts, has_errors in tqdm(
@@ -139,10 +142,13 @@ def validate_epoch(
                     total_cer_errors += sample_cer
                     num_error_samples += 1
 
+                if len(sample_preds) < max_samples_to_log:
+                    sample_preds.append((pred_text, target_text, sample_cer))
+
     avg_loss = total_loss / len(dataloader)
     avg_cer = total_cer / num_samples if num_samples > 0 else 0.0
     avg_cer_errors = total_cer_errors / num_error_samples if num_error_samples > 0 else 0.0
-    return avg_loss, avg_cer, avg_cer_errors
+    return avg_loss, avg_cer, avg_cer_errors, sample_preds
 
 
 def save_checkpoint(model: nn.Module, epoch: int, val_loss: float, checkpoint_dir: Path):
@@ -230,7 +236,7 @@ def main():
         train_loss, global_step = train_epoch(
             model, train_loader, criterion, optimizer, device, wandb_logger, global_step
         )
-        val_loss, val_cer, val_cer_errors = validate_epoch(
+        val_loss, val_cer, val_cer_errors, sample_preds = validate_epoch(
             model, val_loader, criterion, device, vocab
         )
 
@@ -248,6 +254,7 @@ def main():
             },
             step=global_step,
         )
+        wandb_logger.log_predictions(sample_preds, step=global_step)
 
         scheduler.step(val_loss)
 

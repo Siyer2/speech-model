@@ -12,49 +12,41 @@ _IS_MAC = sys.platform == "darwin"
 
 
 class Vocab:
-    """Character vocabulary for phonetic transcription. Index 0 is reserved for CTC blank."""
+    """Character vocab for phonetic transcription.
 
-    def __init__(self, phones: list[str] | None = None):
-        """Initialize vocab from list of phone characters.
+    Index 0 = CTC blank, index 1 = UNK, index 2+ = phones.
+    """
 
-        Args:
-            phones: List of unique characters (blank not included). If None, loads IPA base vocab.
-        """
-        if phones is None:
-            ipa_path = Path(__file__).parent / "ipa-data.csv"
-            ipa_df = pd.read_csv(ipa_path)
-            phones = ipa_df["Symbol"].dropna().tolist()
+    UNK_IDX = 1
+
+    def __init__(self, phones: list[str]):
+        """Initialize vocab from list of phone characters."""
         self.phones = sorted(set(phones))
-        self.phone_to_idx = {p: i + 1 for i, p in enumerate(self.phones)}
-        self.idx_to_phone = {i + 1: p for i, p in enumerate(self.phones)}
+        # 0 = CTC blank, 1 = UNK, 2+ = phones
+        self.phone_to_idx = {p: i + 2 for i, p in enumerate(self.phones)}
+        self.idx_to_phone = {i + 2: p for i, p in enumerate(self.phones)}
 
     @classmethod
     def from_texts(cls, texts: list[str]) -> "Vocab":
-        """Build vocab from list of phonetic transcriptions, starting with IPA base."""
-        base_vocab = cls()  # Load IPA base
-        chars = set(base_vocab.phones)
-
+        """Build vocab from characters that actually appear in the texts."""
+        chars = set()
         for text in texts:
             if isinstance(text, str):
-                new_chars = set(text) - chars
-                if new_chars:
-                    logging.warning(f"Adding phones not in IPA base: {new_chars}")
-                    chars.update(new_chars)
-
+                chars.update(text)
         return cls(list(chars))
 
     @property
     def size(self) -> int:
-        """Vocab size including blank token at index 0."""
-        return len(self.phones) + 1
+        """Vocab size including blank (0) and UNK (1)."""
+        return len(self.phones) + 2
 
     def encode(self, text: str) -> list[int]:
         """Encode text to list of indices."""
-        return [self.phone_to_idx.get(c, 0) for c in text]
+        return [self.phone_to_idx.get(c, self.UNK_IDX) for c in text]
 
     def decode(self, ids: list[int]) -> str:
-        """Decode indices to text (excludes blank tokens)."""
-        return "".join(self.idx_to_phone.get(i, "") for i in ids if i != 0)
+        """Decode indices to text (excludes blank and UNK tokens)."""
+        return "".join(self.idx_to_phone.get(i, "") for i in ids if i not in (0, self.UNK_IDX))
 
 
 class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool]]):

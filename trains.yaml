@@ -2,13 +2,13 @@ model: {}
 
 training:
   batch_size: 32
-  epochs: 100
+  epochs: 1000
   learning_rate: 0.001
   weight_decay: 0.01
   seed: 42
   val_split: 0.2
   num_workers: 2
-  early_stopping_patience: 10
+  early_stopping_patience: 50
 
 data:
   parquet_path: "data/processed/utterances.parquet"

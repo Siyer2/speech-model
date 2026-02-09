@@ -59,6 +59,19 @@ class WandBLogger:
         if self.enabled and self.run:
             wandb.log(metrics, step=step)
 
+    def log_predictions(self, samples: list[tuple[str, str, float]], step: int | None = None):
+        """Log prediction samples as a wandb Table.
+
+        Args:
+            samples: List of (prediction, target, cer) tuples
+            step: Optional step number
+        """
+        if self.enabled and self.run:
+            table = wandb.Table(columns=["prediction", "target", "cer"])
+            for pred, target, cer_val in samples:
+                table.add_data(pred, target, cer_val)
+            wandb.log({"val/predictions": table}, step=step)
+
     def finish(self):
         """Finish WandB run."""
         if self.enabled and self.run:
