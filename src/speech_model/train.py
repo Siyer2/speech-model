@@ -13,9 +13,9 @@ from tqdm import tqdm
 
 from .config import Config
 from .dataset import PhoneticDataset, Vocab
-from .loss import ctc_decode
+from .loss import ctc_decode, ctc_prefix_beam_search
 from .metrics import cer
-from .model import SimplePhoneticModel
+from .model import ConformerPhoneticModel
 from .wandb_utils import WandBLogger
 
 
@@ -33,10 +33,13 @@ def split_by_participant(
 
 
 def collate_fn(
-    batch: list,
+    batch: list[tuple[torch.Tensor, torch.Tensor, str, bool]],
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list[str], torch.Tensor]:
     """Collate variable-length audio and targets for CTC."""
-    audios, targets, texts, has_errors = zip(*batch, strict=False)
+
+    audios: list[torch.Tensor] = [b[0] for b in batch]
+    targets: list[torch.Tensor] = [b[1] for b in batch]
+    texts: list[str] = [b[2] for b in batch]
 
     # Pad audio
     audio_lengths = torch.tensor([a.size(0) for a in audios])
@@ -46,13 +49,13 @@ def collate_fn(
     target_lengths = torch.tensor([t.size(0) for t in targets])
     targets_padded = pad_sequence(targets, batch_first=True)
 
-    has_errors = torch.tensor(has_errors, dtype=torch.bool)
+    has_errors = torch.tensor([b[3] for b in batch], dtype=torch.bool)
 
     return audios_padded, targets_padded, audio_lengths, target_lengths, list(texts), has_errors
 
 
 def train_epoch(
-    model: SimplePhoneticModel,
+    model: ConformerPhoneticModel,
     dataloader: DataLoader,
     criterion: nn.Module,
     optimizer: optim.Optimizer,
@@ -72,7 +75,7 @@ def train_epoch(
         targets = targets.to(device)
 
         optimizer.zero_grad()
-        logits = model(audios)  # (batch, time, vocab)
+        logits = model(audios, audio_lengths)  # (batch, time, vocab)
 
         # CTC expects (time, batch, vocab)
         log_probs = nn.functional.log_softmax(logits, dim=-1).transpose(0, 1)
@@ -93,11 +96,13 @@ def train_epoch(
 
 
 def validate_epoch(
-    model: SimplePhoneticModel,
+    model: ConformerPhoneticModel,
     dataloader: DataLoader,
     criterion: nn.Module,
     device: torch.device,
     vocab: Vocab,
+    decoding_method: str = "greedy",
+    beam_width: int = 10,
     max_samples_to_log: int = 10,
 ) -> tuple[float, float, float, list[tuple[str, str, float]]]:
     """Validate and compute CER.
@@ -122,7 +127,7 @@ def validate_epoch(
             audios = audios.to(device)
             targets = targets.to(device)
 
-            logits = model(audios)
+            logits = model(audios, audio_lengths)
             log_probs = nn.functional.log_softmax(logits, dim=-1).transpose(0, 1)
 
             input_lengths = model.compute_output_lengths(audio_lengths)
@@ -131,19 +136,31 @@ def validate_epoch(
             total_loss += loss.item()
 
             # Decode predictions and compute CER
-            preds = logits.argmax(dim=-1)  # (batch, time)
-            for i, (pred, target_text) in enumerate(zip(preds, texts, strict=False)):
-                pred_text = ctc_decode(pred[: input_lengths[i]].tolist(), vocab)
-                sample_cer = cer(pred_text, target_text)
-                total_cer += sample_cer
-                num_samples += 1
-
-                if has_errors[i]:
-                    total_cer_errors += sample_cer
-                    num_error_samples += 1
-
-                if len(sample_preds) < max_samples_to_log:
-                    sample_preds.append((pred_text, target_text, sample_cer))
+            if decoding_method == "beam_search":
+                log_probs_decode = nn.functional.log_softmax(logits, dim=-1)
+                for i, target_text in enumerate(texts):
+                    seq_lp = log_probs_decode[i, : input_lengths[i], :]
+                    pred_text = ctc_prefix_beam_search(seq_lp, vocab, beam_width)
+                    sample_cer = cer(pred_text, target_text)
+                    total_cer += sample_cer
+                    num_samples += 1
+                    if has_errors[i]:
+                        total_cer_errors += sample_cer
+                        num_error_samples += 1
+                    if len(sample_preds) < max_samples_to_log:
+                        sample_preds.append((pred_text, target_text, sample_cer))
+            else:
+                preds = logits.argmax(dim=-1)  # (batch, time)
+                for i, (pred, target_text) in enumerate(zip(preds, texts, strict=False)):
+                    pred_text = ctc_decode(pred[: input_lengths[i]].tolist(), vocab)
+                    sample_cer = cer(pred_text, target_text)
+                    total_cer += sample_cer
+                    num_samples += 1
+                    if has_errors[i]:
+                        total_cer_errors += sample_cer
+                        num_error_samples += 1
+                    if len(sample_preds) < max_samples_to_log:
+                        sample_preds.append((pred_text, target_text, sample_cer))
 
     avg_loss = total_loss / len(dataloader)
     avg_cer = total_cer / num_samples if num_samples > 0 else 0.0
@@ -182,7 +199,7 @@ def main():
 
     # Build vocab and split data
     vocab = Vocab.from_texts(df["actual_phonetic"].dropna().tolist())
-    print(f"Vocab size: {vocab.size} (including blank)")
+    print(f"Vocab size: {vocab.size} (including blank and unk)")
 
     train_df, val_df = split_by_participant(df, config.training.val_split, config.training.seed)
     print(f"Train: {len(train_df)}, Val: {len(val_df)}")
@@ -213,12 +230,24 @@ def main():
     )
 
     # Create model
-    model = SimplePhoneticModel(vocab.size).to(device)
-    print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
+    model = ConformerPhoneticModel(
+        vocab_size=vocab.size,
+        d_model=config.model.d_model,
+        num_heads=config.model.num_heads,
+        ff_dim=config.model.ff_dim,
+        num_layers=config.model.num_layers,
+        conv_kernel_size=config.model.conv_kernel_size,
+        dropout=config.model.dropout,
+        backbone=config.model.backbone,
+        freeze_backbone=config.model.freeze_backbone,
+    ).to(device)
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Model parameters: {total_params:,} total, {trainable_params:,} trainable")
 
     criterion = nn.CTCLoss(blank=0, zero_infinity=True)
     optimizer = optim.AdamW(
-        model.parameters(),
+        filter(lambda p: p.requires_grad, model.parameters()),
         lr=config.training.learning_rate,
         weight_decay=config.training.weight_decay,
     )
@@ -237,7 +266,13 @@ def main():
             model, train_loader, criterion, optimizer, device, wandb_logger, global_step
         )
         val_loss, val_cer, val_cer_errors, sample_preds = validate_epoch(
-            model, val_loader, criterion, device, vocab
+            model,
+            val_loader,
+            criterion,
+            device,
+            vocab,
+            decoding_method=config.decoding.method,
+            beam_width=config.decoding.beam_width,
         )
 
         print(

@@ -1,7 +1,15 @@
-model: {}
+model:
+  d_model: 256
+  num_heads: 4
+  ff_dim: 1024
+  num_layers: 4
+  conv_kernel_size: 31
+  dropout: 0.1
+  backbone: hubert_base
+  freeze_backbone: true
 
 training:
-  batch_size: 32
+  batch_size: 16
   epochs: 1000
   learning_rate: 0.001
   weight_decay: 0.01
@@ -20,3 +28,7 @@ wandb:
   project: "speech-model"
   entity: siyer22
   enabled: true
+
+decoding:
+  method: greedy
+  beam_width: 2

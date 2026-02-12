@@ -24,6 +24,15 @@ def _set_global_seed(seed: int):
 class ModelConfig:
     """Model configuration."""
 
+    d_model: int
+    num_heads: int
+    ff_dim: int
+    num_layers: int
+    conv_kernel_size: int
+    dropout: float
+    backbone: str | None = None  # None = original CNN, "hubert_base" = pretrained
+    freeze_backbone: bool = True
+
 
 @dataclass
 class TrainingConfig:
@@ -59,6 +68,14 @@ class WandBConfig:
 
 
 @dataclass
+class DecodingConfig:
+    """Decoding configuration for validation."""
+
+    method: str = "greedy"  # "greedy" or "beam_search"
+    beam_width: int = 10
+
+
+@dataclass
 class Config:
     """Main configuration container."""
 
@@ -66,6 +83,7 @@ class Config:
     training: TrainingConfig
     data: DataConfig
     wandb: WandBConfig
+    decoding: DecodingConfig
 
     @classmethod
     def from_yaml(cls, yaml_path: str | Path) -> "Config":
@@ -82,6 +100,7 @@ class Config:
             training=TrainingConfig(**config_dict["training"]),
             data=DataConfig(**config_dict["data"]),
             wandb=WandBConfig(**config_dict["wandb"]),
+            decoding=DecodingConfig(**config_dict.get("decoding", {})),
         )
 
         _set_global_seed(config.training.seed)
@@ -90,7 +109,16 @@ class Config:
     def to_dict(self) -> dict:
         """Convert config to dictionary for logging."""
         return {
-            "model": {},
+            "model": {
+                "d_model": self.model.d_model,
+                "num_heads": self.model.num_heads,
+                "ff_dim": self.model.ff_dim,
+                "num_layers": self.model.num_layers,
+                "conv_kernel_size": self.model.conv_kernel_size,
+                "dropout": self.model.dropout,
+                "backbone": self.model.backbone,
+                "freeze_backbone": self.model.freeze_backbone,
+            },
             "training": {
                 "batch_size": self.training.batch_size,
                 "epochs": self.training.epochs,
@@ -111,5 +139,9 @@ class Config:
                 "project": self.wandb.project,
                 "entity": self.wandb.entity,
                 "enabled": self.wandb.enabled,
+            },
+            "decoding": {
+                "method": self.decoding.method,
+                "beam_width": self.decoding.beam_width,
             },
         }
