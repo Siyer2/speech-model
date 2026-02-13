@@ -198,7 +198,7 @@ def main():
     print(f"Loaded {len(df)} utterances")
 
     # Build vocab and split data
-    vocab = Vocab.from_texts(df["actual_phonetic"].dropna().tolist())
+    vocab = Vocab.from_phones()
     print(f"Vocab size: {vocab.size} (including blank and unk)")
 
     train_df, val_df = split_by_participant(df, config.training.val_split, config.training.seed)

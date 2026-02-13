@@ -15,9 +15,23 @@ class Vocab:
     """Character vocab for phonetic transcription.
 
     Index 0 = CTC blank, index 1 = UNK, index 2+ = phones.
+    Uses a fixed set of 53 phone characters covering all English IPA phones
+    needed for speech pathology diagnosis.
     """
 
     UNK_IDX = 1
+
+    # fmt: off
+    PHONES: list[str] = [
+        # Consonants
+        "b", "d", "f", "g", "h", "j", "k", "l", "m", "n", "p", "r", "s", "t",
+        "v", "w", "z", "ð", "ŋ", "ɡ", "ɫ", "ɹ", "ɾ", "ʃ", "ʒ", "ʔ", "ʤ", "ʧ", "θ",
+        # Vowels
+        "a", "e", "i", "o", "u", "æ", "ɑ", "ɔ", "ɚ", "ɛ", "ɝ", "ɪ", "ə", "ʊ", "ʌ",
+        # Modifiers and other
+        "ʰ", "ˈ", "ˌ", "ː", "\u0329", "\u032F", "\u0361", "*", " ",
+    ]
+    # fmt: on
 
     def __init__(self, phones: list[str]):
         """Initialize vocab from list of phone characters."""
@@ -27,13 +41,9 @@ class Vocab:
         self.idx_to_phone = {i + 2: p for i, p in enumerate(self.phones)}
 
     @classmethod
-    def from_texts(cls, texts: list[str]) -> "Vocab":
-        """Build vocab from characters that actually appear in the texts."""
-        chars = set()
-        for text in texts:
-            if isinstance(text, str):
-                chars.update(text)
-        return cls(list(chars))
+    def from_phones(cls) -> "Vocab":
+        """Build vocab from the fixed phone set."""
+        return cls(cls.PHONES)
 
     @property
     def size(self) -> int:
@@ -41,7 +51,7 @@ class Vocab:
         return len(self.phones) + 2
 
     def encode(self, text: str) -> list[int]:
-        """Encode text to list of indices."""
+        """Encode text to list of indices. Unknown chars map to UNK_IDX."""
         return [self.phone_to_idx.get(c, self.UNK_IDX) for c in text]
 
     def decode(self, ids: list[int]) -> str:
