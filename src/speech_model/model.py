@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torchaudio.models
 import torchaudio.pipelines
+import torchaudio.transforms as t
 
 
 class ConformerPhoneticModel(nn.Module):
@@ -23,9 +24,11 @@ class ConformerPhoneticModel(nn.Module):
         dropout: float = 0.1,
         backbone: str | None = None,
         freeze_backbone: bool = True,
+        spec_augment: bool = False,
     ):
         super().__init__()
         self.backbone_name = backbone
+        self.spec_augment = spec_augment
 
         if backbone == "hubert_base":
             bundle = torchaudio.pipelines.HUBERT_BASE
@@ -60,6 +63,12 @@ class ConformerPhoneticModel(nn.Module):
         )
         self.head = nn.Linear(d_model, vocab_size)
 
+        if spec_augment:
+            self.spec_augment_transforms = nn.Sequential(
+                t.FrequencyMasking(freq_mask_param=27),
+                t.TimeMasking(time_mask_param=100),
+            )
+
     def compute_output_lengths(self, audio_lengths: torch.Tensor) -> torch.Tensor:
         """Compute output sequence lengths from input audio lengths."""
         lengths = audio_lengths.clone()
@@ -88,6 +97,10 @@ class ConformerPhoneticModel(nn.Module):
             x = audio.unsqueeze(1)  # (batch, 1, samples)
             x = self.feature_encoder(x)  # (batch, 512, time)
             x = x.transpose(1, 2)  # (batch, time, 512)
+
+        if self.spec_augment and self.training:
+            # spec augment expects (batch, features, time)
+            x = self.spec_augment_transforms(x.transpose(1, 2)).transpose(1, 2)
 
         x = self.input_proj(x)  # (batch, time, d_model)
 

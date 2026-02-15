@@ -1,5 +1,6 @@
 """Training script for CTC-based audio-to-phonetic model."""
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -168,12 +169,18 @@ def validate_epoch(
     return avg_loss, avg_cer, avg_cer_errors, sample_preds
 
 
-def save_checkpoint(model: nn.Module, epoch: int, val_loss: float, checkpoint_dir: Path):
+def save_checkpoint(
+    model: nn.Module,
+    epoch: int,
+    val_loss: float,
+    checkpoint_dir: Path,
+    leaf_path: str,
+):
     """Save model checkpoint."""
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     torch.save(
         {"model_state_dict": model.state_dict(), "epoch": epoch, "val_loss": val_loss},
-        checkpoint_dir / "best.pt",
+        checkpoint_dir / leaf_path,
     )
 
 
@@ -240,6 +247,7 @@ def main():
         dropout=config.model.dropout,
         backbone=config.model.backbone,
         freeze_backbone=config.model.freeze_backbone,
+        spec_augment=config.model.spec_augment,
     ).to(device)
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -263,7 +271,13 @@ def main():
         print(f"\nEpoch {epoch + 1}/{config.training.epochs}")
 
         train_loss, global_step = train_epoch(
-            model, train_loader, criterion, optimizer, device, wandb_logger, global_step
+            model,
+            train_loader,
+            criterion,
+            optimizer,
+            device,
+            wandb_logger,
+            global_step,
         )
         val_loss, val_cer, val_cer_errors, sample_preds = validate_epoch(
             model,
@@ -296,7 +310,17 @@ def main():
         if val_loss < best_loss:
             best_loss = val_loss
             patience = 0
-            save_checkpoint(model, epoch, val_loss, checkpoint_dir)
+
+            train_name = os.environ.get("EXPERIMENT_NAME")
+            leaf = f"{train_name}-best.pt" if train_name else "best.pt"
+
+            save_checkpoint(
+                model,
+                epoch,
+                val_loss,
+                checkpoint_dir,
+                leaf_path=leaf,
+            )
             print(f"Saved best model (loss={best_loss:.4f})")
         else:
             patience += 1

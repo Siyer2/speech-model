@@ -30,6 +30,7 @@ class ModelConfig:
     num_layers: int
     conv_kernel_size: int
     dropout: float
+    spec_augment: bool
     backbone: str | None = None  # None = original CNN, "hubert_base" = pretrained
     freeze_backbone: bool = True
 
@@ -117,7 +118,7 @@ class Config:
                 "conv_kernel_size": self.model.conv_kernel_size,
                 "dropout": self.model.dropout,
                 "backbone": self.model.backbone,
-                "freeze_backbone": self.model.freeze_backbone,
+                "spec_augment": self.model.spec_augment,
             },
             "training": {
                 "batch_size": self.training.batch_size,
