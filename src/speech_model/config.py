@@ -47,6 +47,7 @@ class TrainingConfig:
     val_split: float
     num_workers: int
     early_stopping_patience: int
+    resume_checkpoint: str = ""
 
 
 @dataclass

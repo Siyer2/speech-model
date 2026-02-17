@@ -171,15 +171,27 @@ def validate_epoch(
 
 def save_checkpoint(
     model: nn.Module,
+    optimizer: optim.Optimizer,
+    scheduler: optim.lr_scheduler.ReduceLROnPlateau,
     epoch: int,
     val_loss: float,
+    best_loss: float,
+    global_step: int,
     checkpoint_dir: Path,
     leaf_path: str,
 ):
-    """Save model checkpoint."""
+    """Save model checkpoint with full training state."""
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     torch.save(
-        {"model_state_dict": model.state_dict(), "epoch": epoch, "val_loss": val_loss},
+        {
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
+            "epoch": epoch,
+            "val_loss": val_loss,
+            "best_loss": best_loss,
+            "global_step": global_step,
+        },
         checkpoint_dir / leaf_path,
     )
 
@@ -266,8 +278,26 @@ def main():
     patience = 0
     checkpoint_dir = Path(config.data.checkpoint_dir)
     global_step = 0
+    start_epoch = 0
 
-    for epoch in range(config.training.epochs):
+    # Resume from checkpoint if specified
+    if config.training.resume_checkpoint:
+        ckpt_path = Path(config.training.resume_checkpoint)
+        if not ckpt_path.exists():
+            raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
+        print(f"Resuming from checkpoint: {ckpt_path}")
+        checkpoint = torch.load(ckpt_path, map_location=device)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        if "optimizer_state_dict" in checkpoint:
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        if "scheduler_state_dict" in checkpoint:
+            scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+        start_epoch = checkpoint.get("epoch", 0) + 1
+        best_loss = checkpoint.get("best_loss", checkpoint.get("val_loss", float("inf")))
+        global_step = checkpoint.get("global_step", 0)
+        print(f"Resumed at epoch {start_epoch}, best_loss={best_loss:.4f}")
+
+    for epoch in range(start_epoch, config.training.epochs):
         print(f"\nEpoch {epoch + 1}/{config.training.epochs}")
 
         train_loss, global_step = train_epoch(
@@ -316,8 +346,12 @@ def main():
 
             save_checkpoint(
                 model,
+                optimizer,
+                scheduler,
                 epoch,
                 val_loss,
+                best_loss,
+                global_step,
                 checkpoint_dir,
                 leaf_path=leaf,
             )
