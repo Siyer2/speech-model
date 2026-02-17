@@ -30,8 +30,12 @@ class ConformerPhoneticModel(nn.Module):
         self.backbone_name = backbone
         self.spec_augment = spec_augment
 
-        if backbone == "hubert_base":
-            bundle = torchaudio.pipelines.HUBERT_BASE
+        if backbone in ("hubert_base", "wavlm_base"):
+            bundle = (
+                torchaudio.pipelines.WAVLM_BASE
+                if backbone == "wavlm_base"
+                else torchaudio.pipelines.HUBERT_BASE
+            )
             self.hubert = bundle.get_model()
             if freeze_backbone:
                 for param in self.hubert.parameters():
@@ -72,7 +76,7 @@ class ConformerPhoneticModel(nn.Module):
     def compute_output_lengths(self, audio_lengths: torch.Tensor) -> torch.Tensor:
         """Compute output sequence lengths from input audio lengths."""
         lengths = audio_lengths.clone()
-        if self.backbone_name == "hubert_base":
+        if self.backbone_name in ("hubert_base", "wavlm_base"):
             for k, s in zip(self._hubert_conv_kernels, self._hubert_conv_strides, strict=True):
                 lengths = (lengths - k) // s + 1
         else:
@@ -91,8 +95,12 @@ class ConformerPhoneticModel(nn.Module):
         Returns:
             Logits (batch, time, vocab_size)
         """
-        if self.backbone_name == "hubert_base":
-            x, _ = self.hubert(audio, audio_lengths.to(audio.device))  # (batch, time, 768)
+        if self.backbone_name in ("hubert_base", "wavlm_base"):
+            # WavLM attention doesn't support attention masks, so only pass lengths for HuBERT
+            lengths_arg = (
+                audio_lengths.to(audio.device) if self.backbone_name == "hubert_base" else None
+            )
+            x, _ = self.hubert(audio, lengths_arg)  # (batch, time, 768)
         else:
             x = audio.unsqueeze(1)  # (batch, 1, samples)
             x = self.feature_encoder(x)  # (batch, 512, time)

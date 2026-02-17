@@ -1,5 +1,6 @@
 import logging
 import sys
+import unicodedata
 from pathlib import Path
 
 import pandas as pd
@@ -9,6 +10,11 @@ import torchaudio
 from torch.utils.data import Dataset
 
 _IS_MAC = sys.platform == "darwin"
+
+
+def normalize_phonetic(text: str) -> str:
+    """Strip combining diacritics by NFD decomposing then removing combining chars."""
+    return "".join(c for c in unicodedata.normalize("NFD", text) if not unicodedata.combining(c))
 
 
 class Vocab:
@@ -127,6 +133,7 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool]]):
 
         # Encode target
         target_text = row["actual_phonetic"] if isinstance(row["actual_phonetic"], str) else ""
+        target_text = normalize_phonetic(target_text)
         target_ids = torch.tensor(self.vocab.encode(target_text), dtype=torch.long)
 
         has_errors = row["error_patterns"] is not None and len(row["error_patterns"]) > 0

@@ -5,12 +5,12 @@ model:
   num_layers: 4
   conv_kernel_size: 31
   dropout: 0.1
-  backbone: hubert_base
+  backbone: wavlm_base
   freeze_backbone: true
   spec_augment: true
 
 training:
-  batch_size: 64
+  batch_size: 32
   epochs: 1000
   learning_rate: 0.001
   weight_decay: 0.01
