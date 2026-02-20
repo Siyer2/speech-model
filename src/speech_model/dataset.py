@@ -86,7 +86,7 @@ class Vocab:
         return "".join(self.idx_to_phone.get(i, "") for i in ids if i not in (0, self.UNK_IDX))
 
 
-class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool]]):
+class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool, str]]):
     """Dataset that loads raw audio and phonetic transcriptions."""
 
     def __init__(
@@ -151,6 +151,8 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool]]):
         target_text = normalize_phonetic(target_text)
         target_ids = torch.tensor(self.vocab.encode(target_text), dtype=torch.long)
 
-        has_errors = row["error_patterns"] is not None and len(row["error_patterns"]) > 0
+        raw_patterns = row["error_patterns"]
+        has_errors = raw_patterns is not None and len(raw_patterns) > 0
+        error_patterns_str = ", ".join(raw_patterns) if has_errors else ""
 
-        return waveform, target_ids, target_text, has_errors
+        return waveform, target_ids, target_text, has_errors, error_patterns_str

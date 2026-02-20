@@ -59,19 +59,25 @@ class WandBLogger:
         if self.enabled and self.run:
             wandb.log(metrics, step=step)
 
-    def log_predictions(self, samples: list[tuple[str, str, float]], step: int | None = None):
-        """Log prediction samples as a wandb Table.
+    def log_predictions(
+        self,
+        samples: list[tuple[str, str, float, str]],
+        step: int | None = None,
+        max_rows: int = 200,
+    ):
+        """Log prediction samples as a wandb Table (truncated for efficiency).
 
         Args:
-            samples: List of (prediction, target, cer) tuples
+            samples: List of (prediction, target, cer, error_patterns) tuples
             step: Optional step number
+            max_rows: Maximum number of rows to log
         """
         if self.enabled and self.run:
-            table = wandb.Table(columns=["prediction", "target", "cer"])
-            for pred, target, cer_val in samples:
-                table.add_data(pred, target, cer_val)
+            table = wandb.Table(columns=["prediction", "target", "cer", "error_patterns"])
+            for pred, target, cer_val, patterns in samples[:max_rows]:
+                table.add_data(pred, target, cer_val, patterns)
             wandb.log({"val/predictions": table}, step=step)
-            print(f"Logged {len(samples)} predictions to wandb")
+            print(f"Logged {len(samples[:max_rows])}/{len(samples)} predictions to wandb")
 
     def finish(self):
         """Finish WandB run."""

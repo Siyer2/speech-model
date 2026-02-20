@@ -36,7 +36,7 @@ def split_by_participant(
 
 
 def collate_fn_w2v(
-    batch: list[tuple[torch.Tensor, torch.Tensor, str, bool]],
+    batch: list[tuple[torch.Tensor, torch.Tensor, str, bool, str]],
     feature_extractor: Wav2Vec2FeatureExtractor,
 ) -> dict:
     """Collate for Wav2Vec2 training: normalize audio + pad targets."""
@@ -44,6 +44,7 @@ def collate_fn_w2v(
     targets = [b[1] for b in batch]
     texts = [b[2] for b in batch]
     has_errors = torch.tensor([b[3] for b in batch], dtype=torch.bool)
+    error_patterns = [b[4] for b in batch]
 
     processed = feature_extractor(audios, sampling_rate=16000, return_tensors="pt", padding=True)
 
@@ -57,6 +58,7 @@ def collate_fn_w2v(
         "target_lengths": target_lengths,
         "texts": texts,
         "has_errors": has_errors,
+        "error_patterns": error_patterns,
     }
 
 
@@ -108,13 +110,13 @@ def validate_epoch(
     criterion: nn.Module,
     device: torch.device,
     vocab: Vocab,
-) -> tuple[float, float, float, list[tuple[str, str, float]]]:
+) -> tuple[float, float, float, list[tuple[str, str, float, str]]]:
     """Validate and compute CER.
 
     Returns:
         Tuple of (avg_loss, avg_cer, avg_cer_errors, all_preds) where
         avg_cer_errors is CER computed only on samples with error patterns,
-        and all_preds contains (pred, target, cer) for every sample.
+        and all_preds contains (pred, target, cer, error_patterns) for every sample.
     """
     model.eval()
     total_loss = 0.0
@@ -122,7 +124,7 @@ def validate_epoch(
     total_cer_errors = 0.0
     num_samples = 0
     num_error_samples = 0
-    all_preds: list[tuple[str, str, float]] = []
+    all_preds: list[tuple[str, str, float, str]] = []
 
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Validation", leave=False):
@@ -132,6 +134,7 @@ def validate_epoch(
             target_lengths = batch["target_lengths"].to(device)
             texts = batch["texts"]
             has_errors = batch["has_errors"]
+            error_patterns = batch["error_patterns"]
 
             logits = model(input_values, attention_mask=attention_mask).logits
             log_probs = nn.functional.log_softmax(logits, dim=-1).transpose(0, 1)
@@ -158,7 +161,7 @@ def validate_epoch(
                     total_cer_errors += sample_cer
                     num_error_samples += 1
 
-                all_preds.append((norm_pred, norm_target, sample_cer))
+                all_preds.append((norm_pred, norm_target, sample_cer, error_patterns[i]))
 
     avg_loss = total_loss / len(dataloader)
     avg_cer = total_cer / num_samples if num_samples > 0 else 0.0
