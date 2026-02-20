@@ -1,7 +1,7 @@
 """Configuration loading and validation."""
 
 import random
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
@@ -18,21 +18,6 @@ def _set_global_seed(seed: int):
         torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-
-
-@dataclass
-class ModelConfig:
-    """Model configuration."""
-
-    d_model: int
-    num_heads: int
-    ff_dim: int
-    num_layers: int
-    conv_kernel_size: int
-    dropout: float
-    spec_augment: bool
-    backbone: str | None = None  # None = original CNN, "hubert_base" = pretrained
-    freeze_backbone: bool = True
 
 
 @dataclass
@@ -70,22 +55,12 @@ class WandBConfig:
 
 
 @dataclass
-class DecodingConfig:
-    """Decoding configuration for validation."""
-
-    method: str = "greedy"  # "greedy" or "beam_search"
-    beam_width: int = 10
-
-
-@dataclass
 class Config:
     """Main configuration container."""
 
-    model: ModelConfig
     training: TrainingConfig
     data: DataConfig
     wandb: WandBConfig
-    decoding: DecodingConfig
 
     @classmethod
     def from_yaml(cls, yaml_path: str | Path) -> "Config":
@@ -98,11 +73,9 @@ class Config:
             config_dict = yaml.safe_load(f)
 
         config = cls(
-            model=ModelConfig(**config_dict.get("model", {})),
             training=TrainingConfig(**config_dict["training"]),
             data=DataConfig(**config_dict["data"]),
             wandb=WandBConfig(**config_dict["wandb"]),
-            decoding=DecodingConfig(**config_dict.get("decoding", {})),
         )
 
         _set_global_seed(config.training.seed)
@@ -110,40 +83,4 @@ class Config:
 
     def to_dict(self) -> dict:
         """Convert config to dictionary for logging."""
-        return {
-            "model": {
-                "d_model": self.model.d_model,
-                "num_heads": self.model.num_heads,
-                "ff_dim": self.model.ff_dim,
-                "num_layers": self.model.num_layers,
-                "conv_kernel_size": self.model.conv_kernel_size,
-                "dropout": self.model.dropout,
-                "backbone": self.model.backbone,
-                "spec_augment": self.model.spec_augment,
-            },
-            "training": {
-                "batch_size": self.training.batch_size,
-                "epochs": self.training.epochs,
-                "learning_rate": self.training.learning_rate,
-                "weight_decay": self.training.weight_decay,
-                "seed": self.training.seed,
-                "val_split": self.training.val_split,
-                "num_workers": self.training.num_workers,
-                "early_stopping_patience": self.training.early_stopping_patience,
-            },
-            "data": {
-                "parquet_path": self.data.parquet_path,
-                "audio_base_path": self.data.audio_base_path,
-                "checkpoint_dir": self.data.checkpoint_dir,
-                "sample_rate": self.data.sample_rate,
-            },
-            "wandb": {
-                "project": self.wandb.project,
-                "entity": self.wandb.entity,
-                "enabled": self.wandb.enabled,
-            },
-            "decoding": {
-                "method": self.decoding.method,
-                "beam_width": self.decoding.beam_width,
-            },
-        }
+        return asdict(self)
