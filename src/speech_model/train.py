@@ -1,6 +1,7 @@
-"""Training script for CTC-based audio-to-phonetic model."""
+"""Training script for fine-tuning Wav2Vec2ForCTC on phonetic transcription data."""
 
 import os
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -11,12 +12,13 @@ import torch.optim as optim
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2ForCTC
 
 from .config import Config
-from .dataset import PhoneticDataset, Vocab
-from .loss import ctc_decode, ctc_prefix_beam_search
+from .dataset import PhoneticDataset, Vocab, normalize_for_cer
+from .loss import create_ctc_loss, ctc_decode
 from .metrics import cer
-from .model import ConformerPhoneticModel
+from .model import PRETRAINED_MODEL, create_model, get_param_groups
 from .wandb_utils import WandBLogger
 
 
@@ -33,30 +35,33 @@ def split_by_participant(
     return df[mask], df[~mask]
 
 
-def collate_fn(
+def collate_fn_w2v(
     batch: list[tuple[torch.Tensor, torch.Tensor, str, bool]],
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, list[str], torch.Tensor]:
-    """Collate variable-length audio and targets for CTC."""
-
-    audios: list[torch.Tensor] = [b[0] for b in batch]
-    targets: list[torch.Tensor] = [b[1] for b in batch]
-    texts: list[str] = [b[2] for b in batch]
-
-    # Pad audio
-    audio_lengths = torch.tensor([a.size(0) for a in audios])
-    audios_padded = pad_sequence(audios, batch_first=True)
-
-    # Pad targets
-    target_lengths = torch.tensor([t.size(0) for t in targets])
-    targets_padded = pad_sequence(targets, batch_first=True)
-
+    feature_extractor: Wav2Vec2FeatureExtractor,
+) -> dict:
+    """Collate for Wav2Vec2 training: normalize audio + pad targets."""
+    audios = [b[0].numpy() for b in batch]
+    targets = [b[1] for b in batch]
+    texts = [b[2] for b in batch]
     has_errors = torch.tensor([b[3] for b in batch], dtype=torch.bool)
 
-    return audios_padded, targets_padded, audio_lengths, target_lengths, list(texts), has_errors
+    processed = feature_extractor(audios, sampling_rate=16000, return_tensors="pt", padding=True)
+
+    target_lengths = torch.tensor([t.size(0) for t in targets], dtype=torch.long)
+    targets_padded = pad_sequence(targets, batch_first=True, padding_value=0)
+
+    return {
+        "input_values": processed["input_values"],
+        "attention_mask": processed["attention_mask"],
+        "targets": targets_padded,
+        "target_lengths": target_lengths,
+        "texts": texts,
+        "has_errors": has_errors,
+    }
 
 
 def train_epoch(
-    model: ConformerPhoneticModel,
+    model: Wav2Vec2ForCTC,
     dataloader: DataLoader,
     criterion: nn.Module,
     optimizer: optim.Optimizer,
@@ -69,22 +74,23 @@ def train_epoch(
     model.train()
     total_loss = 0.0
 
-    for batch_idx, (audios, targets, audio_lengths, target_lengths, _, _) in enumerate(
-        tqdm(dataloader, desc="Training", leave=False)
-    ):
-        audios = audios.to(device)
-        targets = targets.to(device)
+    for batch_idx, batch in enumerate(tqdm(dataloader, desc="Training", leave=False)):
+        input_values = batch["input_values"].to(device)
+        attention_mask = batch["attention_mask"].to(device)
+        targets = batch["targets"].to(device)
+        target_lengths = batch["target_lengths"].to(device)
 
         optimizer.zero_grad()
-        logits = model(audios, audio_lengths)  # (batch, time, vocab)
 
+        logits = model(input_values, attention_mask=attention_mask).logits
         # CTC expects (time, batch, vocab)
         log_probs = nn.functional.log_softmax(logits, dim=-1).transpose(0, 1)
 
-        input_lengths = model.compute_output_lengths(audio_lengths)
+        input_lengths = model._get_feat_extract_output_lengths(attention_mask.sum(dim=-1)).long()  # pyright: ignore[reportAttributeAccessIssue]
 
         loss = criterion(log_probs, targets, input_lengths, target_lengths)
         loss.backward()
+        nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
         total_loss += loss.item()
@@ -97,21 +103,18 @@ def train_epoch(
 
 
 def validate_epoch(
-    model: ConformerPhoneticModel,
+    model: Wav2Vec2ForCTC,
     dataloader: DataLoader,
     criterion: nn.Module,
     device: torch.device,
     vocab: Vocab,
-    decoding_method: str = "greedy",
-    beam_width: int = 10,
-    max_samples_to_log: int = 10,
 ) -> tuple[float, float, float, list[tuple[str, str, float]]]:
     """Validate and compute CER.
 
     Returns:
-        Tuple of (avg_loss, avg_cer, avg_cer_errors, sample_preds) where
+        Tuple of (avg_loss, avg_cer, avg_cer_errors, all_preds) where
         avg_cer_errors is CER computed only on samples with error patterns,
-        and sample_preds is a list of (pred, target, cer) tuples for logging.
+        and all_preds contains (pred, target, cer) for every sample.
     """
     model.eval()
     total_loss = 0.0
@@ -119,54 +122,48 @@ def validate_epoch(
     total_cer_errors = 0.0
     num_samples = 0
     num_error_samples = 0
-    sample_preds: list[tuple[str, str, float]] = []
+    all_preds: list[tuple[str, str, float]] = []
 
     with torch.no_grad():
-        for audios, targets, audio_lengths, target_lengths, texts, has_errors in tqdm(
-            dataloader, desc="Validation", leave=False
-        ):
-            audios = audios.to(device)
-            targets = targets.to(device)
+        for batch in tqdm(dataloader, desc="Validation", leave=False):
+            input_values = batch["input_values"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            targets = batch["targets"].to(device)
+            target_lengths = batch["target_lengths"].to(device)
+            texts = batch["texts"]
+            has_errors = batch["has_errors"]
 
-            logits = model(audios, audio_lengths)
+            logits = model(input_values, attention_mask=attention_mask).logits
             log_probs = nn.functional.log_softmax(logits, dim=-1).transpose(0, 1)
 
-            input_lengths = model.compute_output_lengths(audio_lengths)
+            input_lengths = model._get_feat_extract_output_lengths(
+                attention_mask.sum(dim=-1)
+            ).long()  # pyright: ignore[reportAttributeAccessIssue]
 
             loss = criterion(log_probs, targets, input_lengths, target_lengths)
             total_loss += loss.item()
 
-            # Decode predictions and compute CER
-            if decoding_method == "beam_search":
-                log_probs_decode = nn.functional.log_softmax(logits, dim=-1)
-                for i, target_text in enumerate(texts):
-                    seq_lp = log_probs_decode[i, : input_lengths[i], :]
-                    pred_text = ctc_prefix_beam_search(seq_lp, vocab, beam_width)
-                    sample_cer = cer(pred_text, target_text)
-                    total_cer += sample_cer
-                    num_samples += 1
-                    if has_errors[i]:
-                        total_cer_errors += sample_cer
-                        num_error_samples += 1
-                    if len(sample_preds) < max_samples_to_log:
-                        sample_preds.append((pred_text, target_text, sample_cer))
-            else:
-                preds = logits.argmax(dim=-1)  # (batch, time)
-                for i, (pred, target_text) in enumerate(zip(preds, texts, strict=False)):
-                    pred_text = ctc_decode(pred[: input_lengths[i]].tolist(), vocab)
-                    sample_cer = cer(pred_text, target_text)
-                    total_cer += sample_cer
-                    num_samples += 1
-                    if has_errors[i]:
-                        total_cer_errors += sample_cer
-                        num_error_samples += 1
-                    if len(sample_preds) < max_samples_to_log:
-                        sample_preds.append((pred_text, target_text, sample_cer))
+            # Greedy decode using our vocab
+            preds = logits.argmax(dim=-1)  # (batch, time)
+            for i, (pred, target_text) in enumerate(zip(preds, texts, strict=True)):
+                pred_text = ctc_decode(pred[: input_lengths[i]].tolist(), vocab)
+                norm_pred = normalize_for_cer(pred_text)
+                norm_target = normalize_for_cer(target_text)
+
+                sample_cer = cer(norm_pred, norm_target)
+                total_cer += sample_cer
+                num_samples += 1
+
+                if has_errors[i]:
+                    total_cer_errors += sample_cer
+                    num_error_samples += 1
+
+                all_preds.append((norm_pred, norm_target, sample_cer))
 
     avg_loss = total_loss / len(dataloader)
     avg_cer = total_cer / num_samples if num_samples > 0 else 0.0
     avg_cer_errors = total_cer_errors / num_error_samples if num_error_samples > 0 else 0.0
-    return avg_loss, avg_cer, avg_cer_errors, sample_preds
+    return avg_loss, avg_cer, avg_cer_errors, all_preds
 
 
 def save_checkpoint(
@@ -223,13 +220,24 @@ def main():
     train_df, val_df = split_by_participant(df, config.training.val_split, config.training.seed)
     print(f"Train: {len(train_df)}, Val: {len(val_df)}")
 
-    # Create datasets and loaders
     train_dataset = PhoneticDataset(
         train_df, vocab, config.data.audio_base_path, config.data.sample_rate
     )
     val_dataset = PhoneticDataset(
         val_df, vocab, config.data.audio_base_path, config.data.sample_rate
     )
+
+    # Load pretrained Wav2Vec2 and replace head for our vocab
+    print(f"Loading pretrained model: {PRETRAINED_MODEL}")
+    model, feature_extractor = create_model(vocab.size)
+
+    model = model.to(device)  # type: ignore
+
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Model parameters: {total_params:,} total, {trainable_params:,} trainable")
+
+    collate_fn = partial(collate_fn_w2v, feature_extractor=feature_extractor)
 
     train_loader = DataLoader(
         train_dataset,
@@ -248,29 +256,10 @@ def main():
         pin_memory=True,
     )
 
-    # Create model
-    model = ConformerPhoneticModel(
-        vocab_size=vocab.size,
-        d_model=config.model.d_model,
-        num_heads=config.model.num_heads,
-        ff_dim=config.model.ff_dim,
-        num_layers=config.model.num_layers,
-        conv_kernel_size=config.model.conv_kernel_size,
-        dropout=config.model.dropout,
-        backbone=config.model.backbone,
-        freeze_backbone=config.model.freeze_backbone,
-        spec_augment=config.model.spec_augment,
-    ).to(device)
-    total_params = sum(p.numel() for p in model.parameters())
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Model parameters: {total_params:,} total, {trainable_params:,} trainable")
+    criterion = create_ctc_loss()
 
-    criterion = nn.CTCLoss(blank=0, zero_infinity=True)
-    optimizer = optim.AdamW(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=config.training.learning_rate,
-        weight_decay=config.training.weight_decay,
-    )
+    param_groups = get_param_groups(model, config.training.learning_rate)
+    optimizer = optim.AdamW(param_groups, weight_decay=config.training.weight_decay)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=5)
 
     # Training loop
@@ -309,14 +298,12 @@ def main():
             wandb_logger,
             global_step,
         )
-        val_loss, val_cer, val_cer_errors, sample_preds = validate_epoch(
+        val_loss, val_cer, val_cer_errors, all_preds = validate_epoch(
             model,
             val_loader,
             criterion,
             device,
             vocab,
-            decoding_method=config.decoding.method,
-            beam_width=config.decoding.beam_width,
         )
 
         print(
@@ -330,10 +317,11 @@ def main():
                 "val/loss": val_loss,
                 "val/cer": val_cer,
                 "val/cer_errors": val_cer_errors,
+                "lr": optimizer.param_groups[0]["lr"],
             },
             step=global_step,
         )
-        wandb_logger.log_predictions(sample_preds, step=global_step)
+        wandb_logger.log_predictions(all_preds, step=global_step)
 
         scheduler.step(val_loss)
 
