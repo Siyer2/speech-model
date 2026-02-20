@@ -71,6 +71,7 @@ class WandBLogger:
             for pred, target, cer_val in samples:
                 table.add_data(pred, target, cer_val)
             wandb.log({"val/predictions": table}, step=step)
+            print(f"Logged {len(samples)} predictions to wandb")
 
     def finish(self):
         """Finish WandB run."""

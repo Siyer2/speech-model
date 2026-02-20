@@ -69,3 +69,4 @@ Thumbs.db
 logs/
 *.log
 
+.envrc
