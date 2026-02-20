@@ -1,5 +1,4 @@
 import logging
-import sys
 import unicodedata
 from pathlib import Path
 
@@ -9,12 +8,34 @@ import torch
 import torchaudio
 from torch.utils.data import Dataset
 
-_IS_MAC = sys.platform == "darwin"
-
 
 def normalize_phonetic(text: str) -> str:
     """Strip combining diacritics by NFD decomposing then removing combining chars."""
     return "".join(c for c in unicodedata.normalize("NFD", text) if not unicodedata.combining(c))
+
+
+def normalize_for_cer(text: str) -> str:
+    """Normalize phonetic text for CER comparison with Wav2Vec2Phoneme output.
+
+    Strips characters the pretrained model cannot predict (stress, aspiration,
+    standalone length marks) and maps ligature affricates to digraphs so that
+    both model output and target text are in the same character space.
+    """
+    text = normalize_phonetic(text)
+    # Map ligature affricates to digraphs (model uses digraphs)
+    replacements = {
+        "ʤ": "dʒ",
+        "ʧ": "tʃ",
+        "ʦ": "ts",
+        "ʨ": "tɕ",
+        "g": "ɡ",  # ASCII g -> IPA ɡ (U+0261)
+        "ɝ": "ɚ",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    # Strip characters the model cannot produce
+    text = "".join(c for c in text if c not in "ˈˌːʰ* ")
+    return text
 
 
 class Vocab:
@@ -89,7 +110,7 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool]]):
             audio_path = self.audio_base_path / row["audio_path"]
             try:
                 info = sf.info(audio_path)
-                is_valid = info.frames > 0
+                is_valid = info.frames >= 400
             except Exception:
                 is_valid = False
 
@@ -115,17 +136,11 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool]]):
         row = self.df.iloc[index]
         audio_path = self.audio_base_path / row["audio_path"]
 
-        # TODO: Remove Mac workaround once torchcodec/ffmpeg issues are resolved
-        # Mac: Use soundfile to bypass torchaudio/torchcodec issues
-        # Linux: Use torchaudio (more efficient, native C++ bindings)
-        if _IS_MAC:
-            data, sr = sf.read(audio_path)
-            waveform = torch.from_numpy(data).float()
-            if waveform.ndim > 1:
-                waveform = waveform.mean(dim=-1)
-        else:
-            waveform, sr = torchaudio.load(audio_path)
-            waveform = waveform[0]  # Take first channel
+        # Use soundfile directly (avoids torchcodec dependency issues with torchaudio)
+        data, sr = sf.read(audio_path)
+        waveform = torch.from_numpy(data).float()
+        if waveform.ndim > 1:
+            waveform = waveform.mean(dim=-1)
 
         # Resample if needed
         if sr != self.sample_rate:
