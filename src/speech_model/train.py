@@ -1,6 +1,7 @@
 """Training script for fine-tuning Wav2Vec2ForCTC on phonetic transcription data."""
 
 import os
+import random
 from functools import partial
 from pathlib import Path
 
@@ -224,7 +225,11 @@ def main():
     print(f"Train: {len(train_df)}, Val: {len(val_df)}")
 
     train_dataset = PhoneticDataset(
-        train_df, vocab, config.data.audio_base_path, config.data.sample_rate
+        train_df,
+        vocab,
+        config.data.audio_base_path,
+        config.data.sample_rate,
+        train=True,
     )
     val_dataset = PhoneticDataset(
         val_df, vocab, config.data.audio_base_path, config.data.sample_rate
@@ -242,6 +247,12 @@ def main():
 
     collate_fn = partial(collate_fn_w2v, feature_extractor=feature_extractor)
 
+    def worker_init_fn(worker_id: int):
+        """Seed numpy/random per worker so audiomentations augmentations are deterministic."""
+        seed = torch.initial_seed() % 2**32
+        np.random.seed(seed)
+        random.seed(seed)
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=config.training.batch_size,
@@ -249,6 +260,7 @@ def main():
         num_workers=config.training.num_workers,
         collate_fn=collate_fn,
         pin_memory=True,
+        worker_init_fn=worker_init_fn,
     )
     val_loader = DataLoader(
         val_dataset,
@@ -257,6 +269,7 @@ def main():
         num_workers=config.training.num_workers,
         collate_fn=collate_fn,
         pin_memory=True,
+        worker_init_fn=worker_init_fn,
     )
 
     criterion = create_ctc_loss()

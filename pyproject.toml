@@ -18,6 +18,7 @@ dependencies = [
     "pyzmq>=27.1.0",
     "soundfile>=0.13.1",
     "transformers>=4.40.0",
+    "audiomentations>=0.36.0",
 ]
 
 [build-system]

@@ -2,6 +2,8 @@ import logging
 import unicodedata
 from pathlib import Path
 
+import audiomentations as am
+import numpy as np
 import pandas as pd
 import soundfile as sf
 import torch
@@ -90,7 +92,12 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool, str]]
     """Dataset that loads raw audio and phonetic transcriptions."""
 
     def __init__(
-        self, df: pd.DataFrame, vocab: Vocab, audio_base_path: str, sample_rate: int = 16000
+        self,
+        df: pd.DataFrame,
+        vocab: Vocab,
+        audio_base_path: str,
+        sample_rate: int = 16000,
+        train: bool = False,
     ):
         """Initialize dataset.
 
@@ -99,10 +106,22 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool, str]]
             vocab: Vocabulary for encoding phonetic text
             audio_base_path: Base path to prepend to audio_path
             sample_rate: Target sample rate (16kHz)
+            train: Whether to apply augmentations (training only)
         """
         self.vocab = vocab
         self.audio_base_path = Path(audio_base_path)
         self.sample_rate = sample_rate
+        self.augment = (
+            am.Compose(
+                [
+                    am.TimeStretch(min_rate=0.9, max_rate=1.1, p=0.5),
+                    am.AddGaussianNoise(min_amplitude=0.001, max_amplitude=0.015, p=0.5),
+                    am.Gain(min_gain_db=-6, max_gain_db=6, p=0.5),
+                ]
+            )
+            if train
+            else None
+        )
 
         # Pre-filter invalid audio files
         valid_mask = []
@@ -138,13 +157,23 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool, str]]
 
         # Use soundfile directly (avoids torchcodec dependency issues with torchaudio)
         data, sr = sf.read(audio_path)
-        waveform = torch.from_numpy(data).float()
-        if waveform.ndim > 1:
-            waveform = waveform.mean(dim=-1)
+        if data.ndim > 1:
+            data = data.mean(axis=-1)
 
         # Resample if needed
         if sr != self.sample_rate:
+            waveform = torch.from_numpy(data).float()
             waveform = torchaudio.functional.resample(waveform, sr, self.sample_rate)
+            data = waveform.numpy()
+
+        # Apply augmentations (training only)
+        if self.augment is not None:
+            data = self.augment(
+                samples=np.asarray(data, dtype=np.float32),
+                sample_rate=self.sample_rate,
+            )
+
+        waveform = torch.from_numpy(data).float()
 
         # Encode target
         target_text = row["actual_phonetic"] if isinstance(row["actual_phonetic"], str) else ""
