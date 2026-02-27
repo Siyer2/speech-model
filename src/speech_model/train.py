@@ -19,8 +19,8 @@ from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2ForCTC
 
 from .config import Config
 from .dataset import PhoneticDataset, Vocab, normalize_for_cer
-from .decode import constrained_decode, load_ontology, parse_ontology_rules
-from .loss import create_ctc_loss, ctc_decode
+from .decode import beam_search_decode
+from .loss import create_ctc_loss
 from .metrics import cer
 from .model import PRETRAINED_MODEL, create_model, get_param_groups
 from .wandb_utils import WandBLogger
@@ -125,15 +125,8 @@ def validate_epoch(
     criterion: nn.Module,
     device: torch.device,
     vocab: Vocab,
-    parsed_rules: dict[str, list] | None = None,
-    beam_width: int = 20,
 ) -> tuple[float, float, float, list[tuple[str, str, float, str]], list[dict]]:
     """Validate and compute CER.
-
-    Args:
-        parsed_rules: If provided, use constrained beam search decoding.
-            If None, fall back to greedy decoding.
-        beam_width: Beam width for constrained decoding.
 
     Returns:
         Tuple of (avg_loss, avg_cer, avg_cer_errors, all_preds, instance_records) where
@@ -161,7 +154,6 @@ def validate_epoch(
             texts = batch["texts"]
             has_errors = batch["has_errors"]
             error_patterns = batch["error_patterns"]
-            target_phonetics = batch["target_phonetics"]
             utterance_ids = batch["utterance_ids"]
             audio_paths = batch["audio_paths"]
 
@@ -178,20 +170,8 @@ def validate_epoch(
             for i, target_text in enumerate(texts):
                 seq_len = input_lengths[i]
 
-                if parsed_rules is not None:
-                    # Constrained beam search decoding
-                    sample_log_probs = log_probs_ctc[i, :seq_len]  # (T, V)
-                    pred_text = constrained_decode(
-                        sample_log_probs,
-                        target_phonetics[i],
-                        parsed_rules,
-                        vocab,
-                        beam_width,
-                    )
-                else:
-                    # Greedy decoding fallback
-                    pred_ids = logits[i, :seq_len].argmax(dim=-1)
-                    pred_text = ctc_decode(pred_ids.tolist(), vocab)
+                sample_log_probs = log_probs_ctc[i, :seq_len]  # (T, V)
+                pred_text = beam_search_decode(sample_log_probs, vocab)
 
                 norm_pred = normalize_for_cer(pred_text)
                 norm_target = normalize_for_cer(target_text)
@@ -281,12 +261,6 @@ def main():
 
     print(f"Using device: {device}")
 
-    # Load ontology for constrained decoding
-    ontology_path = Path(__file__).parent.parent.parent / "ontology.yaml"
-    ontology = load_ontology(ontology_path)
-    parsed_rules = parse_ontology_rules(ontology)
-    print(f"Loaded {len(parsed_rules)} error patterns from ontology")
-
     # Load data
     df = pd.read_parquet(config.data.parquet_path)
     print(f"Loaded {len(df)} utterances")
@@ -358,7 +332,6 @@ def main():
             criterion,
             device,
             vocab,
-            parsed_rules=parsed_rules,
         )
         print(
             f"Val Loss: {val_loss:.4f} | Val CER: {val_cer:.4f} | "
