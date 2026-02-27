@@ -15,4 +15,5 @@ repos:
         entry: uvx ty check
         language: system
         types: [python]
+        exclude: ^scripts/
 

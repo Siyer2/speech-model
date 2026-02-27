@@ -10,6 +10,11 @@ import torch
 import torchaudio
 from torch.utils.data import Dataset
 
+_INVALID_AUDIO = {
+    "processed/audio_segments/Preston/P15_101.wav",
+    "processed/audio_segments/PD21/041027_215.wav",
+}
+
 
 def normalize_phonetic(text: str) -> str:
     """Strip combining diacritics by NFD decomposing then removing combining chars."""
@@ -88,7 +93,7 @@ class Vocab:
         return "".join(self.idx_to_phone.get(i, "") for i in ids if i not in (0, self.UNK_IDX))
 
 
-class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool, str]]):
+class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool, str, str, str, str]]):
     """Dataset that loads raw audio and phonetic transcriptions."""
 
     def __init__(
@@ -123,25 +128,11 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool, str]]
             else None
         )
 
-        # Pre-filter invalid audio files
-        valid_mask = []
-        for _, row in df.iterrows():
-            audio_path = self.audio_base_path / row["audio_path"]
-            try:
-                info = sf.info(audio_path)
-                is_valid = info.frames >= 400
-            except Exception:
-                is_valid = False
-
-            if not is_valid:
-                logging.warning(f"Filtering invalid audio: {audio_path}")
-            valid_mask.append(is_valid)
-
-        n_filtered = len(df) - sum(valid_mask)
+        mask = ~df["audio_path"].isin(_INVALID_AUDIO)
+        n_filtered = (~mask).sum()
         if n_filtered > 0:
-            logging.warning(f"Filtered {n_filtered}/{len(df)} invalid audio files")
-
-        self.df = df[valid_mask].reset_index(drop=True)
+            logging.warning(f"Filtered {n_filtered}/{len(df)} known-invalid audio files")
+        self.df = df[mask].reset_index(drop=True)
 
     def __len__(self) -> int:
         return len(self.df)
@@ -150,38 +141,59 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool, str]]
         """Get audio and encoded target.
 
         Returns:
-            Tuple of (audio_waveform, target_ids, target_text, has_errors)
+            Tuple of (audio_waveform, target_ids, target_text, has_errors,
+                       error_patterns_str, target_phonetic, utterance_id, audio_path_str),
+            or None if the sample is broken.
         """
         row = self.df.iloc[index]
         audio_path = self.audio_base_path / row["audio_path"]
 
-        # Use soundfile directly (avoids torchcodec dependency issues with torchaudio)
-        data, sr = sf.read(audio_path)
-        if data.ndim > 1:
-            data = data.mean(axis=-1)
+        try:
+            # Use soundfile directly (avoids torchcodec dependency issues with torchaudio)
+            data, sr = sf.read(audio_path)
+            if data.ndim > 1:
+                data = data.mean(axis=-1)
 
-        # Resample if needed
-        if sr != self.sample_rate:
+            # Resample if needed
+            if sr != self.sample_rate:
+                waveform = torch.from_numpy(data).float()
+                waveform = torchaudio.functional.resample(waveform, sr, self.sample_rate)
+                data = waveform.numpy()
+
+            # Apply augmentations (training only)
+            if self.augment is not None:
+                data = self.augment(
+                    samples=np.asarray(data, dtype=np.float32),
+                    sample_rate=self.sample_rate,
+                )
+
             waveform = torch.from_numpy(data).float()
-            waveform = torchaudio.functional.resample(waveform, sr, self.sample_rate)
-            data = waveform.numpy()
 
-        # Apply augmentations (training only)
-        if self.augment is not None:
-            data = self.augment(
-                samples=np.asarray(data, dtype=np.float32),
-                sample_rate=self.sample_rate,
+            # Encode target
+            target_text = row["actual_phonetic"] if isinstance(row["actual_phonetic"], str) else ""
+            target_text = normalize_phonetic(target_text)
+            target_ids = torch.tensor(self.vocab.encode(target_text), dtype=torch.long)
+
+            raw_patterns = row["error_patterns"]
+            has_errors = raw_patterns is not None and len(raw_patterns) > 0
+            error_patterns_str = ", ".join(raw_patterns) if has_errors else ""
+
+            # Additional fields for constrained decoding and logging
+            raw_target = row["target_phonetic"] if isinstance(row["target_phonetic"], str) else ""
+            target_phonetic = normalize_phonetic(raw_target)
+            utterance_id = str(row.get("utterance_id", ""))
+            audio_path_str = str(row["audio_path"])
+
+            return (
+                waveform,
+                target_ids,
+                target_text,
+                has_errors,
+                error_patterns_str,
+                target_phonetic,
+                utterance_id,
+                audio_path_str,
             )
-
-        waveform = torch.from_numpy(data).float()
-
-        # Encode target
-        target_text = row["actual_phonetic"] if isinstance(row["actual_phonetic"], str) else ""
-        target_text = normalize_phonetic(target_text)
-        target_ids = torch.tensor(self.vocab.encode(target_text), dtype=torch.long)
-
-        raw_patterns = row["error_patterns"]
-        has_errors = raw_patterns is not None and len(raw_patterns) > 0
-        error_patterns_str = ", ".join(raw_patterns) if has_errors else ""
-
-        return waveform, target_ids, target_text, has_errors, error_patterns_str
+        except Exception:
+            logging.warning(f"Skipping broken sample {index}: {audio_path}")
+            return None
