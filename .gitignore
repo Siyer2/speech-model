@@ -53,6 +53,7 @@ data/
 *.wav
 *.mp3
 *.flac
+tmp
 
 # Models
 models/
