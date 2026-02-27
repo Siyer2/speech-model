@@ -1,84 +1,94 @@
-"""Quantise a checkpoint to INT8 (dynamic) and save to a new file."""
+"""Export a PyTorch checkpoint to ONNX and quantise to INT8."""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
+import onnx
 import torch
-import torch.ao.quantization
-import torch.nn as nn
+from onnxruntime.quantization import QuantType, quantize_dynamic
 
 from speech_model.dataset import Vocab
 from speech_model.model import create_model
-
-# ── Configuration ────────────────────────────────────────────────────────────
-CHECKPOINT_PATH = "checkpoints/drop-mcallister-best.pt"
-QUANTISED_OUTPUT_PATH = "checkpoints/drop-mcallister-int8.pt"
-# ─────────────────────────────────────────────────────────────────────────────
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 
-def get_file_size_mb(path: Path) -> float:
+# ── Configuration ────────────────────────────────────────────────────────────
+CHECKPOINT_PATH = "checkpoints/drop-mcallister-best.pt"
+ONNX_FP32_PATH = "checkpoints/model-fp32.onnx"
+ONNX_INT8_PATH = "checkpoints/model-int8.onnx"
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def size_mb(path: Path) -> float:
     return path.stat().st_size / (1024 * 1024)
 
 
 def main():
-    ckpt_path = PROJECT_ROOT / CHECKPOINT_PATH
-    out_path = PROJECT_ROOT / QUANTISED_OUTPUT_PATH
+    ckpt = PROJECT_ROOT / CHECKPOINT_PATH
+    fp32_out = PROJECT_ROOT / ONNX_FP32_PATH
+    int8_out = PROJECT_ROOT / ONNX_INT8_PATH
 
-    if not ckpt_path.exists():
-        raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
-    if out_path.exists():
-        raise FileExistsError(
-            f"Output already exists: {out_path} — delete it or change QUANTISED_OUTPUT_PATH"
-        )
+    if not ckpt.exists():
+        raise FileNotFoundError(f"Checkpoint not found: {ckpt}")
 
-    # Load model on CPU (required for dynamic quantisation)
+    # Load model
     vocab = Vocab.from_phones()
     model, _ = create_model(vocab.size)
-
-    print(f"Loading checkpoint: {ckpt_path}")
-    checkpoint = torch.load(ckpt_path, map_location="cpu")
+    checkpoint = torch.load(ckpt, map_location="cpu")
     model.load_state_dict(checkpoint["model_state_dict"])
+    model.eval()
 
-    # Save FP32 model-only size for fair comparison (original checkpoint
-    # includes optimizer/scheduler state which inflates it).
-    tmp_path = PROJECT_ROOT / "checkpoints" / "_tmp_fp32_model_only.pt"
-    torch.save({"model_state_dict": model.state_dict()}, tmp_path)
-    model_only_size = get_file_size_mb(tmp_path)
-    tmp_path.unlink()
+    # Dummy input for tracing (1 second of 16kHz audio, batch=1)
+    dummy_input = torch.randn(1, 16000)
+    dummy_mask = torch.ones(1, 16000, dtype=torch.long)
 
-    # Quantise all Linear layers to INT8
-    print("Applying INT8 dynamic quantisation...")
-    quantised_model = torch.ao.quantization.quantize_dynamic(
+    # Step 1: Export to ONNX (FP32)
+    print("Exporting to ONNX (FP32)...")
+    torch.onnx.export(
         model,
-        {nn.Linear},
-        dtype=torch.qint8,
+        (dummy_input, dummy_mask),
+        str(fp32_out),
+        input_names=["input_values", "attention_mask"],
+        output_names=["logits"],
+        dynamic_axes={
+            "input_values": {0: "batch", 1: "time"},
+            "attention_mask": {0: "batch", 1: "time"},
+            "logits": {0: "batch", 1: "frames"},
+        },
+        opset_version=17,
     )
 
-    # Save quantised state_dict (keys differ from FP32 due to quantised
-    # Linear modules, so we flag it so the loader knows to quantise the
-    # architecture before loading).
-    torch.save(
-        {"model_state_dict": quantised_model.state_dict(), "quantised": True},
-        out_path,
-    )
-    print(f"Saved quantised checkpoint: {out_path}")
+    # Merge external data into a single .onnx file (torch exports weights
+    # as a separate .onnx.data file for large models).
+    external_data = Path(str(fp32_out) + ".data")
+    if external_data.exists():
+        print("  Merging external weights into single file...")
+        model_proto = onnx.load(str(fp32_out), load_external_data=True)
+        onnx.save_model(model_proto, str(fp32_out), save_as_external_data=False)
+        external_data.unlink()
 
-    # ── Size comparison ──────────────────────────────────────────────────────
-    original_size = get_file_size_mb(ckpt_path)
-    quantised_size = get_file_size_mb(out_path)
+    print(f"  Saved: {fp32_out}")
 
-    print(f"\nOriginal checkpoint (with optimizer): {original_size:,.1f} MB")
-    print(f"FP32 model-only:                      {model_only_size:,.1f} MB")
-    print(f"INT8 quantised:                        {quantised_size:,.1f} MB")
-    print(
-        f"Model size reduction:                  {model_only_size - quantised_size:,.1f} MB "
-        f"({(1 - quantised_size / model_only_size) * 100:.1f}%)"
+    # Step 2: Quantise to INT8 (MatMul only — Conv layers use weight_norm
+    # which produces dynamic weights the quantiser can't handle)
+    print("Quantising to INT8...")
+    quantize_dynamic(
+        str(fp32_out), str(int8_out), weight_type=QuantType.QInt8, op_types_to_quantize=["MatMul"]
     )
+    print(f"  Saved: {int8_out}")
+
+    # Size comparison
+    fp32_size = size_mb(fp32_out)
+    int8_size = size_mb(int8_out)
+    reduction = (1 - int8_size / fp32_size) * 100
+
+    print(f"\nFP32 ONNX:  {fp32_size:,.1f} MB")
+    print(f"INT8 ONNX:  {int8_size:,.1f} MB")
+    print(f"Reduction:  {fp32_size - int8_size:,.1f} MB ({reduction:.1f}%)")
 
 
 if __name__ == "__main__":
