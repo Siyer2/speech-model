@@ -16,8 +16,8 @@ repos:
     hooks:
       - id: ty
         name: ty (type check)
-        entry: uvx ty check
+        entry: uvx ty check --project model
         language: system
         types: [python]
-        exclude: ^scripts/
+        exclude: ^model/scripts/
 
