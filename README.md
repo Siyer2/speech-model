@@ -26,7 +26,7 @@ make train NAME="train-name" NOTE="some description"
 make test
 ```
 
-## Run frontend
+# Run frontend
 
 ```bash
 cd frontend
