@@ -26,6 +26,11 @@ make train NAME="train-name" NOTE="some description"
 make test
 ```
 
+## Release model
+```bash
+gh release create v0.0.1 'model/checkpoints/model-int8.onnx#model.onnx' -R Siyer2/speech-model
+```
+
 # Run frontend
 
 ```bash

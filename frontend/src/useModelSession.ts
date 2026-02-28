@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import * as ort from 'onnxruntime-web/webgpu'
 
-const MODEL_URL = '/models/model-int8.onnx'
+const MODEL_URL = 'https://github.com/Siyer2/speech-model/releases/latest/download/model.onnx'
 const CACHE_NAME = 'onnx-model-cache'
 
 async function fetchModelWithProgress(
