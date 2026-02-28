@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useModelSession } from './useModelSession'
 import { preprocessAudioBlob } from './audioPreprocessing'
 import { runInference } from './inference'
+import { normalizeForCer, detectSpeechErrors } from './speechRules'
 import './App.css'
 
 const NUM_BARS = 30
@@ -43,6 +44,7 @@ function App() {
   const animationFrameRef = useRef<number>(0)
   const streamRef = useRef<MediaStream | null>(null)
   const audioBlobRef = useRef<Blob | null>(null)
+  const inferringRef = useRef(false)
 
   const updateVisualization = useCallback(() => {
     if (!analyserRef.current) return
@@ -119,19 +121,30 @@ function App() {
 
   const nextWord = useCallback(() => {
     const blob = audioBlobRef.current
-    if (blob && session) {
+    if (blob && session && !inferringRef.current) {
       const word = currentWord.word
       const targetIpa = currentWord.ipa.replace(/\//g, '')
       audioBlobRef.current = null
+      inferringRef.current = true
 
       console.log(`Inference triggered for: ${word}`)
       preprocessAudioBlob(blob)
         .then(({ pcmFloat32 }) => runInference(session, pcmFloat32))
         .then((predicted) => {
-          console.log(`Target: ${targetIpa} | Predicted: ${predicted}`)
+          const normTarget = normalizeForCer(targetIpa)
+          const normPredicted = normalizeForCer(predicted)
+          console.log(`Target: ${normTarget} | Predicted: ${normPredicted}`)
+
+          const errors = detectSpeechErrors(word, targetIpa, predicted)
+          for (const err of errors) {
+            console.log(`suspected ${err.pattern} (${err.detail})`)
+          }
         })
         .catch((err) => {
           console.error(`Inference failed for ${word}:`, err)
+        })
+        .finally(() => {
+          inferringRef.current = false
         })
     }
 
