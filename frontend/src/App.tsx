@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { useModelSession } from './useModelSession'
 import './App.css'
 
 const NUM_BARS = 30
@@ -22,6 +23,7 @@ const ASSESSMENT_WORDS = [
 ]
 
 function App() {
+  const { loading: modelLoading, progress: modelProgress, error: modelError } = useModelSession()
   const [isRecording, setIsRecording] = useState(false)
   const [hasRecorded, setHasRecorded] = useState(false)
   const [currentWordIndex, setCurrentWordIndex] = useState(0)
@@ -128,6 +130,29 @@ function App() {
       audioContextRef.current?.close()
     }
   }, [])
+
+  if (modelLoading) {
+    return (
+      <div className="loading-screen">
+        <p className="loading-text">Downloading model...</p>
+        <div className="progress-bar-track">
+          <div
+            className="progress-bar-fill"
+            style={{ width: `${modelProgress}%` }}
+          />
+        </div>
+        <p className="loading-progress">{modelProgress}%</p>
+      </div>
+    )
+  }
+
+  if (modelError) {
+    return (
+      <div className="loading-screen">
+        <p className="loading-error">Failed to load model: {modelError}</p>
+      </div>
+    )
+  }
 
   return (
     <div className="app">
