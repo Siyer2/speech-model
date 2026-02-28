@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useModelSession } from './useModelSession'
+import { preprocessAudioBlob } from './audioPreprocessing'
+import { runInference } from './inference'
 import './App.css'
 
 const NUM_BARS = 30
@@ -23,7 +25,7 @@ const ASSESSMENT_WORDS = [
 ]
 
 function App() {
-  const { loading: modelLoading, progress: modelProgress, error: modelError } = useModelSession()
+  const { session, loading: modelLoading, progress: modelProgress, error: modelError } = useModelSession()
   const [isRecording, setIsRecording] = useState(false)
   const [hasRecorded, setHasRecorded] = useState(false)
   const [currentWordIndex, setCurrentWordIndex] = useState(0)
@@ -40,6 +42,7 @@ function App() {
   const audioContextRef = useRef<AudioContext | null>(null)
   const animationFrameRef = useRef<number>(0)
   const streamRef = useRef<MediaStream | null>(null)
+  const audioBlobRef = useRef<Blob | null>(null)
 
   const updateVisualization = useCallback(() => {
     if (!analyserRef.current) return
@@ -81,9 +84,7 @@ function App() {
       }
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' })
-        // TODO: preprocess and send to model
-        console.log('Recording complete:', audioBlob.size, 'bytes')
+        audioBlobRef.current = new Blob(chunksRef.current, { type: 'audio/webm' })
       }
 
       mediaRecorder.start()
@@ -117,11 +118,28 @@ function App() {
   }, [])
 
   const nextWord = useCallback(() => {
+    const blob = audioBlobRef.current
+    if (blob && session) {
+      const word = currentWord.word
+      const targetIpa = currentWord.ipa.replace(/\//g, '')
+      audioBlobRef.current = null
+
+      console.log(`Inference triggered for: ${word}`)
+      preprocessAudioBlob(blob)
+        .then(({ pcmFloat32 }) => runInference(session, pcmFloat32))
+        .then((predicted) => {
+          console.log(`Target: ${targetIpa} | Predicted: ${predicted}`)
+        })
+        .catch((err) => {
+          console.error(`Inference failed for ${word}:`, err)
+        })
+    }
+
     setCurrentWordIndex((prev) =>
       prev < ASSESSMENT_WORDS.length - 1 ? prev + 1 : prev,
     )
     setHasRecorded(false)
-  }, [])
+  }, [session, currentWord])
 
   useEffect(() => {
     return () => {
