@@ -25,3 +25,10 @@ make train NAME="train-name" NOTE="some description"
 # Test
 make test
 ```
+
+## Run frontend
+
+```bash
+cd frontend
+npm run dev
+```
