@@ -34,6 +34,9 @@ export default defineConfig({
       },
     },
   ],
+  server: {
+    allowedHosts: ['batholitic-unproclaimed-viki.ngrok-free.dev'],
+  },
   optimizeDeps: {
     exclude: ['onnxruntime-web'],
   },
