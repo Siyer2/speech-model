@@ -31,6 +31,15 @@
   gap: 0.75rem;
 }
 
+.mic-container {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .mic-button {
   width: 90px;
   height: 90px;
@@ -44,6 +53,8 @@
   cursor: pointer;
   transition: background 0.2s, transform 0.15s;
   padding: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .mic-button:hover {
@@ -56,8 +67,51 @@
   transform: scale(0.97);
 }
 
+.mic-button--recording {
+  background: #e74c3c;
+}
+
+.mic-button--recording:hover {
+  background: #d44234;
+  transform: none;
+}
+
+.mic-button--recording:active {
+  transform: scale(0.97);
+}
+
+.stop-icon {
+  width: 22px;
+  height: 22px;
+  background: #fff;
+  border-radius: 4px;
+}
+
+/* Circular audio visualizer */
+.visualizer {
+  position: absolute;
+  inset: 0;
+}
+
+.visualizer-bar {
+  position: absolute;
+  left: calc(50% - 1.5px);
+  bottom: 50%;
+  width: 3px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 2px;
+  transform-origin: 50% 100%;
+  transition: height 0.06s ease-out, opacity 0.06s ease-out;
+}
+
 .mic-hint {
   color: #aaa;
   font-size: 1rem;
+  margin: 0;
+}
+
+.mic-error {
+  color: #e74c3c;
+  font-size: 0.85rem;
   margin: 0;
 }
