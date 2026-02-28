@@ -1,27 +1,13 @@
-.PHONY: install train test lint format typecheck quality pre-commit
+.PHONY: install train test lint format typecheck quality pre-commit \
+       model-% frontend-%
 
-install:
-	uv sync
+# Delegate to model/
+install train test lint format typecheck quality pre-commit:
+	$(MAKE) -C model $@ EVAL_ONLY="$(EVAL_ONLY)" NOTE="$(NOTE)" NAME="$(NAME)"
 
-train:
-	NOTE="$(NOTE)" NAME="$(NAME)" ./scripts/train.sh
+# Explicit sub-project targets: `make model-train`, `make frontend-install`, etc.
+model-%:
+	$(MAKE) -C model $*
 
-test:
-	uv run pytest
-
-lint:
-	uv run ruff check .
-
-format:
-	uv run ruff format .
-
-typecheck:
-	uvx ty check src/
-
-quality: lint typecheck
-	@echo "✓ All quality checks passed"
-
-pre-commit:
-	uv run --with pre-commit pre-commit install
-	@echo "✓ Pre-commit hooks installed"
-
+frontend-%:
+	$(MAKE) -C frontend $*

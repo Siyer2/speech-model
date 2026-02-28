@@ -26,12 +26,3 @@ def cer(pred: str, target: str) -> float:
     if len(target) == 0:
         return 0.0 if len(pred) == 0 else 1.0
     return _edit_distance(pred, target) / len(target)
-
-
-def wer(pred: str, target: str) -> float:
-    """Word Error Rate: edit_distance on words / num_target_words."""
-    pred_words = pred.split()
-    target_words = target.split()
-    if len(target_words) == 0:
-        return 0.0 if len(pred_words) == 0 else 1.0
-    return _edit_distance(" ".join(pred_words), " ".join(target_words)) / len(target_words)

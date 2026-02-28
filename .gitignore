@@ -20,6 +20,7 @@ wheels/
 .installed.cfg
 *.egg
 .claude
+__marimo__
 
 # Virtual environments
 venv/
@@ -48,10 +49,11 @@ htmlcov/
 wandb/
 
 # Data
-data/
+data
 *.wav
 *.mp3
 *.flac
+tmp
 
 # Models
 models/
@@ -68,3 +70,10 @@ Thumbs.db
 logs/
 *.log
 
+# Node / Frontend
+node_modules/
+
+# ONNX
+*.onnx
+
+.envrc

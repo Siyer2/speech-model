@@ -1,7 +1,7 @@
 """Configuration loading and validation."""
 
 import random
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
@@ -21,13 +21,6 @@ def _set_global_seed(seed: int):
 
 
 @dataclass
-class ModelConfig:
-    """Model configuration."""
-
-    encoder_name: str
-
-
-@dataclass
 class TrainingConfig:
     """Training hyperparameters."""
 
@@ -39,6 +32,7 @@ class TrainingConfig:
     val_split: float
     num_workers: int
     early_stopping_patience: int
+    resume_checkpoint: str = ""
 
 
 @dataclass
@@ -64,7 +58,6 @@ class WandBConfig:
 class Config:
     """Main configuration container."""
 
-    model: ModelConfig
     training: TrainingConfig
     data: DataConfig
     wandb: WandBConfig
@@ -80,7 +73,6 @@ class Config:
             config_dict = yaml.safe_load(f)
 
         config = cls(
-            model=ModelConfig(**config_dict["model"]),
             training=TrainingConfig(**config_dict["training"]),
             data=DataConfig(**config_dict["data"]),
             wandb=WandBConfig(**config_dict["wandb"]),
@@ -91,27 +83,4 @@ class Config:
 
     def to_dict(self) -> dict:
         """Convert config to dictionary for logging."""
-        return {
-            "model": {"encoder_name": self.model.encoder_name},
-            "training": {
-                "batch_size": self.training.batch_size,
-                "epochs": self.training.epochs,
-                "learning_rate": self.training.learning_rate,
-                "weight_decay": self.training.weight_decay,
-                "seed": self.training.seed,
-                "val_split": self.training.val_split,
-                "num_workers": self.training.num_workers,
-                "early_stopping_patience": self.training.early_stopping_patience,
-            },
-            "data": {
-                "parquet_path": self.data.parquet_path,
-                "audio_base_path": self.data.audio_base_path,
-                "checkpoint_dir": self.data.checkpoint_dir,
-                "sample_rate": self.data.sample_rate,
-            },
-            "wandb": {
-                "project": self.wandb.project,
-                "entity": self.wandb.entity,
-                "enabled": self.wandb.enabled,
-            },
-        }
+        return asdict(self)
