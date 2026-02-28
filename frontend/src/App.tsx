@@ -258,6 +258,7 @@ function App() {
     return (
       <div className="loading-screen">
         <p className="loading-text">Downloading model...</p>
+        <p className="loading-tip">Tip: This model is large and may not work on a phone. Use a laptop.</p>
         <div className="progress-bar-track">
           <div
             className="progress-bar-fill"
