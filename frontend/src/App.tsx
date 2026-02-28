@@ -3,6 +3,13 @@ import { useModelSession } from './useModelSession'
 import { preprocessAudioBlob } from './audioPreprocessing'
 import { runInference } from './inference'
 import { normalizeForCer, detectSpeechErrors } from './speechRules'
+import {
+  buildConfirmationTasks,
+  formatPatternName,
+  type WordResult,
+  type ConfirmationTask,
+  type ConfirmationResult,
+} from './confirmationLogic'
 import './App.css'
 
 const NUM_BARS = 30
@@ -25,6 +32,8 @@ const ASSESSMENT_WORDS = [
   { word: 'drum', emoji: '\u{1F941}', ipa: '/dɹʌm/' },
 ]
 
+type AppPhase = 'assessment' | 'confirmation' | 'results'
+
 function App() {
   const { session, loading: modelLoading, progress: modelProgress, error: modelError } = useModelSession()
   const [isRecording, setIsRecording] = useState(false)
@@ -36,7 +45,16 @@ function App() {
     new Array(NUM_BARS).fill(0),
   )
 
-  const currentWord = ASSESSMENT_WORDS[currentWordIndex]
+  const [phase, setPhase] = useState<AppPhase>('assessment')
+  const [assessmentResults, setAssessmentResults] = useState<WordResult[]>([])
+  const [confirmationTasks, setConfirmationTasks] = useState<ConfirmationTask[]>([])
+  const [confirmationIndex, setConfirmationIndex] = useState(0)
+  const [confirmationResults, setConfirmationResults] = useState<ConfirmationResult[]>([])
+
+  const activeWord =
+    phase === 'confirmation'
+      ? ASSESSMENT_WORDS[confirmationTasks[confirmationIndex].confirmWordIndex]
+      : ASSESSMENT_WORDS[currentWordIndex]
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -46,6 +64,21 @@ function App() {
   const streamRef = useRef<MediaStream | null>(null)
   const audioBlobRef = useRef<Blob | null>(null)
   const inferringRef = useRef(false)
+
+  // Transition from assessment to confirmation (or results) when all words are done
+  useEffect(() => {
+    if (phase !== 'assessment' || assessmentResults.length !== ASSESSMENT_WORDS.length) return
+
+    const tasks = buildConfirmationTasks(assessmentResults, ASSESSMENT_WORDS)
+    if (tasks.length === 0) {
+      setPhase('results')
+    } else {
+      setConfirmationTasks(tasks)
+      setConfirmationIndex(0)
+      setHasRecorded(false)
+      setPhase('confirmation')
+    }
+  }, [assessmentResults, phase])
 
   const updateVisualization = useCallback(() => {
     if (!analyserRef.current) return
@@ -120,42 +153,98 @@ function App() {
     setBarHeights(new Array(NUM_BARS).fill(0))
   }, [])
 
-  const nextWord = useCallback(() => {
+  const handleNextAssessment = useCallback(async () => {
     const blob = audioBlobRef.current
-    if (blob && session && !inferringRef.current) {
-      const word = currentWord.word
-      const targetIpa = currentWord.ipa.replace(/\//g, '')
-      audioBlobRef.current = null
-      inferringRef.current = true
-      setIsInferring(true)
+    if (!blob || !session || inferringRef.current) return
 
-      console.log(`Inference triggered for: ${word}`)
-      preprocessAudioBlob(blob)
-        .then(({ pcmFloat32 }) => runInference(session, pcmFloat32))
-        .then((predicted) => {
-          const normTarget = normalizeForCer(targetIpa)
-          const normPredicted = normalizeForCer(predicted)
-          console.log(`Target: ${normTarget} | Predicted: ${normPredicted}`)
+    const word = activeWord.word
+    const targetIpa = activeWord.ipa.replace(/\//g, '')
+    audioBlobRef.current = null
+    inferringRef.current = true
+    setIsInferring(true)
 
-          const errors = detectSpeechErrors(word, targetIpa, predicted)
-          for (const err of errors) {
-            console.log(`suspected ${err.pattern} (${err.detail})`)
-          }
-        })
-        .catch((err) => {
-          console.error(`Inference failed for ${word}:`, err)
-        })
-        .finally(() => {
-          inferringRef.current = false
-          setIsInferring(false)
-        })
+    try {
+      const { pcmFloat32 } = await preprocessAudioBlob(blob)
+      const predicted = await runInference(session, pcmFloat32)
+      const normTarget = normalizeForCer(targetIpa)
+      const normPredicted = normalizeForCer(predicted)
+      console.log(`Target: ${normTarget} | Predicted: ${normPredicted}`)
+
+      const errors = detectSpeechErrors(word, targetIpa, predicted)
+      for (const err of errors) {
+        console.log(`suspected ${err.pattern} (${err.detail})`)
+      }
+
+      setAssessmentResults((prev) => [...prev, { word, errors }])
+    } catch (err) {
+      console.error(`Inference failed for ${word}:`, err)
+      setAssessmentResults((prev) => [...prev, { word, errors: [] }])
+    } finally {
+      inferringRef.current = false
+      setIsInferring(false)
     }
 
+    // Advance to next word (phase transition handled by useEffect)
     if (currentWordIndex < ASSESSMENT_WORDS.length - 1) {
       setCurrentWordIndex((prev) => prev + 1)
     }
     setHasRecorded(false)
-  }, [session, currentWord])
+  }, [session, activeWord, currentWordIndex])
+
+  const handleNextConfirmation = useCallback(async () => {
+    const blob = audioBlobRef.current
+    if (!blob || !session || inferringRef.current) return
+
+    const task = confirmationTasks[confirmationIndex]
+    const wordData = ASSESSMENT_WORDS[task.confirmWordIndex]
+    const targetIpa = wordData.ipa.replace(/\//g, '')
+    audioBlobRef.current = null
+    inferringRef.current = true
+    setIsInferring(true)
+
+    try {
+      const { pcmFloat32 } = await preprocessAudioBlob(blob)
+      const predicted = await runInference(session, pcmFloat32)
+      const errors = detectSpeechErrors(wordData.word, targetIpa, predicted)
+      const confirmed = errors.some((e) => e.pattern === task.pattern)
+
+      setConfirmationResults((prev) => [
+        ...prev,
+        {
+          pattern: task.pattern,
+          detail: task.originalDetail,
+          originalWord: task.originalWord,
+          confirmWord: task.confirmWord,
+          confirmed,
+        },
+      ])
+    } catch (err) {
+      console.error(`Confirmation inference failed:`, err)
+    } finally {
+      inferringRef.current = false
+      setIsInferring(false)
+    }
+
+    if (confirmationIndex < confirmationTasks.length - 1) {
+      setConfirmationIndex((prev) => prev + 1)
+    } else {
+      setPhase('results')
+    }
+    setHasRecorded(false)
+  }, [session, confirmationTasks, confirmationIndex])
+
+  const handleNext = phase === 'confirmation' ? handleNextConfirmation : handleNextAssessment
+
+  const handleRestart = useCallback(() => {
+    setPhase('assessment')
+    setCurrentWordIndex(0)
+    setHasRecorded(false)
+    setAssessmentResults([])
+    setConfirmationTasks([])
+    setConfirmationIndex(0)
+    setConfirmationResults([])
+    setError(null)
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -188,13 +277,82 @@ function App() {
     )
   }
 
+  if (phase === 'results') {
+    const confirmed = confirmationResults.filter((r) => r.confirmed)
+
+    return (
+      <div className="app results-screen">
+        {confirmed.length === 0 ? (
+          <div className="results-clear">
+            <h1 className="results-heading">You are all clear!</h1>
+          </div>
+        ) : (
+          <div className="results-findings">
+            <h1 className="results-heading">Assessment Results</h1>
+            <p className="results-recommendation">
+              Consider contacting a{' '}
+              <a
+                href="https://www.google.com/maps/search/speech+pathologist"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="results-link"
+              >
+                Speech Pathologist
+              </a>{' '}
+              for:
+            </p>
+            <ul className="results-list">
+              {confirmed.map((r, i) => (
+                <li key={i} className="results-item">
+                  <p className="results-condition">
+                    <strong>{formatPatternName(r.pattern)}</strong> as there
+                    could be <strong>{r.detail}</strong> on{' '}
+                    <strong>{r.originalWord}</strong>
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <button className="restart-button" onClick={handleRestart}>
+          Start Over
+        </button>
+      </div>
+    )
+  }
+
+  const isLastStep =
+    phase === 'assessment'
+      ? currentWordIndex >= ASSESSMENT_WORDS.length - 1
+      : confirmationIndex >= confirmationTasks.length - 1
+
+  const buttonLabel =
+    phase === 'confirmation'
+      ? isLastStep
+        ? 'See results'
+        : 'Next'
+      : isLastStep
+        ? 'Finish'
+        : 'Next word'
+
   return (
     <div className="app">
+      {phase === 'assessment' && (
+        <p className="phase-progress">
+          Word {currentWordIndex + 1} of {ASSESSMENT_WORDS.length}
+        </p>
+      )}
+      {phase === 'confirmation' && (
+        <p className="phase-progress">
+          Let's try again! ({confirmationIndex + 1} of {confirmationTasks.length})
+        </p>
+      )}
+
       <div className="word-image">
-        <span className="emoji" role="img" aria-label={currentWord.word}>{currentWord.emoji}</span>
+        <span className="emoji" role="img" aria-label={activeWord.word}>{activeWord.emoji}</span>
       </div>
 
-      <h1 className="word-label">{currentWord.word}</h1>
+      <h1 className="word-label">{activeWord.word}</h1>
 
       <div className="mic-section">
         <div className="button-row">
@@ -253,16 +411,16 @@ function App() {
           {hasRecorded && !isRecording && (
             <button
               className="next-word-button"
-              onClick={nextWord}
+              onClick={handleNext}
               disabled={isInferring}
             >
               {isInferring ? (
                 <span className="spinner" />
-              ) : currentWordIndex >= ASSESSMENT_WORDS.length - 1 ? (
-                'Finish'
+              ) : isLastStep ? (
+                buttonLabel
               ) : (
                 <>
-                  Next word
+                  {buttonLabel}
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     width="20"
