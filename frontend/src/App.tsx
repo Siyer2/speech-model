@@ -3,12 +3,34 @@ import './App.css'
 
 const NUM_BARS = 30
 
+const ASSESSMENT_WORDS = [
+  { word: 'cup', emoji: '\u{1F964}', ipa: '/kʌp/' },
+  { word: 'duck', emoji: '\u{1F986}', ipa: '/dʌk/' },
+  { word: 'green', emoji: '\u{1F7E2}', ipa: '/ɡɹin/' },
+  { word: 'shovel', emoji: '\u26CF\uFE0F', ipa: '/ʃʌvɫ/' },
+  { word: 'fish', emoji: '\u{1F41F}', ipa: '/fɪʃ/' },
+  { word: 'soap', emoji: '\u{1F9FC}', ipa: '/sop/' },
+  { word: 'zebra', emoji: '\u{1F993}', ipa: '/zibɹə/' },
+  { word: 'red', emoji: '\u{1F534}', ipa: '/ɹɛd/' },
+  { word: 'leaf', emoji: '\u{1F343}', ipa: '/lif/' },
+  { word: 'spoon', emoji: '\u{1F944}', ipa: '/spun/' },
+  { word: 'plate', emoji: '\u{1F37D}\uFE0F', ipa: '/plet/' },
+  { word: 'chair', emoji: '\u{1FA91}', ipa: '/tʃɛɚ/' },
+  { word: 'juice', emoji: '\u{1F9C3}', ipa: '/dʒus/' },
+  { word: 'yellow', emoji: '\u{1F7E1}', ipa: '/jɛlo/' },
+  { word: 'drum', emoji: '\u{1F941}', ipa: '/dɹʌm/' },
+]
+
 function App() {
   const [isRecording, setIsRecording] = useState(false)
+  const [hasRecorded, setHasRecorded] = useState(false)
+  const [currentWordIndex, setCurrentWordIndex] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [barHeights, setBarHeights] = useState<number[]>(
     new Array(NUM_BARS).fill(0),
   )
+
+  const currentWord = ASSESSMENT_WORDS[currentWordIndex]
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -64,6 +86,7 @@ function App() {
 
       mediaRecorder.start()
       setIsRecording(true)
+      setHasRecorded(false)
       animationFrameRef.current = requestAnimationFrame(updateVisualization)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -87,7 +110,15 @@ function App() {
     cancelAnimationFrame(animationFrameRef.current)
 
     setIsRecording(false)
+    setHasRecorded(true)
     setBarHeights(new Array(NUM_BARS).fill(0))
+  }, [])
+
+  const nextWord = useCallback(() => {
+    setCurrentWordIndex((prev) =>
+      prev < ASSESSMENT_WORDS.length - 1 ? prev + 1 : prev,
+    )
+    setHasRecorded(false)
   }, [])
 
   useEffect(() => {
@@ -101,39 +132,76 @@ function App() {
   return (
     <div className="app">
       <div className="word-image">
-        <span className="emoji" role="img" aria-label="cup">&#x1F964;</span>
+        <span className="emoji" role="img" aria-label={currentWord.word}>{currentWord.emoji}</span>
       </div>
 
-      <h1 className="word-label">cup</h1>
+      <h1 className="word-label">{currentWord.word}</h1>
 
       <div className="mic-section">
-        <div className="mic-container">
-          {isRecording && (
-            <div className="visualizer">
-              {barHeights.map((height, i) => (
-                <div
-                  key={i}
-                  className="visualizer-bar"
-                  style={{
-                    transform: `rotate(${(i * 360) / NUM_BARS}deg) translateY(-52px)`,
-                    height: `${6 + height * 14}px`,
-                    opacity: 0.4 + height * 0.6,
-                  }}
-                />
-              ))}
+        <div className="button-row">
+          <div className="mic-column">
+            <div className="mic-container">
+              {isRecording && (
+                <div className="visualizer">
+                  {barHeights.map((height, i) => (
+                    <div
+                      key={i}
+                      className="visualizer-bar"
+                      style={{
+                        transform: `rotate(${(i * 360) / NUM_BARS}deg) translateY(-52px)`,
+                        height: `${6 + height * 14}px`,
+                        opacity: 0.4 + height * 0.6,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+              <button
+                className={`mic-button${isRecording ? ' mic-button--recording' : ''}`}
+                onClick={isRecording ? stopRecording : startRecording}
+              >
+                {isRecording ? (
+                  <div className="stop-icon" />
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="40"
+                    height="40"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" x2="12" y1="19" y2="22" />
+                  </svg>
+                )}
+              </button>
             </div>
-          )}
-          <button
-            className={`mic-button${isRecording ? ' mic-button--recording' : ''}`}
-            onClick={isRecording ? stopRecording : startRecording}
-          >
-            {isRecording ? (
-              <div className="stop-icon" />
-            ) : (
+            <p className="mic-hint">
+              {isRecording
+                ? 'Listening...'
+                : hasRecorded
+                  ? 'Tap to redo'
+                  : 'Tap to speak'}
+            </p>
+            {error && <p className="mic-error">{error}</p>}
+          </div>
+
+          {hasRecorded && !isRecording && (
+            <button
+              className="next-word-button"
+              onClick={nextWord}
+              disabled={currentWordIndex >= ASSESSMENT_WORDS.length - 1}
+            >
+              Next word
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                width="40"
-                height="40"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -141,17 +209,12 @@ function App() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                <line x1="12" x2="12" y1="19" y2="22" />
+                <path d="M5 12h14" />
+                <path d="m12 5 7 7-7 7" />
               </svg>
-            )}
-          </button>
+            </button>
+          )}
         </div>
-        <p className="mic-hint">
-          {isRecording ? 'Listening...' : 'Tap to speak'}
-        </p>
-        {error && <p className="mic-error">{error}</p>}
       </div>
     </div>
   )
