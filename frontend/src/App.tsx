@@ -30,6 +30,7 @@ function App() {
   const [isRecording, setIsRecording] = useState(false)
   const [hasRecorded, setHasRecorded] = useState(false)
   const [currentWordIndex, setCurrentWordIndex] = useState(0)
+  const [isInferring, setIsInferring] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [barHeights, setBarHeights] = useState<number[]>(
     new Array(NUM_BARS).fill(0),
@@ -126,6 +127,7 @@ function App() {
       const targetIpa = currentWord.ipa.replace(/\//g, '')
       audioBlobRef.current = null
       inferringRef.current = true
+      setIsInferring(true)
 
       console.log(`Inference triggered for: ${word}`)
       preprocessAudioBlob(blob)
@@ -145,12 +147,13 @@ function App() {
         })
         .finally(() => {
           inferringRef.current = false
+          setIsInferring(false)
         })
     }
 
-    setCurrentWordIndex((prev) =>
-      prev < ASSESSMENT_WORDS.length - 1 ? prev + 1 : prev,
-    )
+    if (currentWordIndex < ASSESSMENT_WORDS.length - 1) {
+      setCurrentWordIndex((prev) => prev + 1)
+    }
     setHasRecorded(false)
   }, [session, currentWord])
 
@@ -251,23 +254,31 @@ function App() {
             <button
               className="next-word-button"
               onClick={nextWord}
-              disabled={currentWordIndex >= ASSESSMENT_WORDS.length - 1}
+              disabled={isInferring}
             >
-              Next word
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M5 12h14" />
-                <path d="m12 5 7 7-7 7" />
-              </svg>
+              {isInferring ? (
+                <span className="spinner" />
+              ) : currentWordIndex >= ASSESSMENT_WORDS.length - 1 ? (
+                'Finish'
+              ) : (
+                <>
+                  Next word
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 12h14" />
+                    <path d="m12 5 7 7-7 7" />
+                  </svg>
+                </>
+              )}
             </button>
           )}
         </div>
