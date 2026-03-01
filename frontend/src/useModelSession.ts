@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 import * as ort from 'onnxruntime-web/webgpu'
 
-const MODEL_URL = 'https://github.com/Siyer2/speech-model/releases/latest/download/model.onnx'
+const MODEL_URL = 'https://speech-model-data.s3.amazonaws.com/model.onnx'
 const CACHE_NAME = 'onnx-model-cache'
+const CACHE_KEY = 'model.onnx'
 
 async function fetchModelWithProgress(
   onProgress: (percent: number) => void,
   signal: AbortSignal,
 ): Promise<ArrayBuffer> {
   const cache = await caches.open(CACHE_NAME)
-  const cached = await cache.match(MODEL_URL)
+  const cached = await cache.match(CACHE_KEY)
 
   if (cached) {
     onProgress(100)
@@ -52,7 +53,7 @@ async function fetchModelWithProgress(
   onProgress(100)
 
   // Store in cache for next time
-  await cache.put(MODEL_URL, new Response(modelBuffer, {
+  await cache.put(CACHE_KEY, new Response(modelBuffer, {
     headers: { 'Content-Length': String(received) },
   }))
 
