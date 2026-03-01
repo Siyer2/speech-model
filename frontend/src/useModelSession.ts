@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import * as ort from 'onnxruntime-web/webgpu'
 
-const MODEL_URL = 'https://speech-model-data.s3.amazonaws.com/model.onnx'
+const MODEL_URL = 'https://huggingface.co/siyer2/speech-model/resolve/main/model.onnx'
 const CACHE_NAME = 'onnx-model-cache'
 const CACHE_KEY = 'model.onnx'
 
@@ -52,10 +52,14 @@ async function fetchModelWithProgress(
 
   onProgress(100)
 
-  // Store in cache for next time
-  await cache.put(CACHE_KEY, new Response(modelBuffer, {
-    headers: { 'Content-Length': String(received) },
-  }))
+  // Store in cache for next time (non-fatal if storage quota exceeded)
+  try {
+    await cache.put(CACHE_KEY, new Response(modelBuffer, {
+      headers: { 'Content-Length': String(received) },
+    }))
+  } catch {
+    console.warn('Failed to cache model — storage quota may be exceeded')
+  }
 
   return modelBuffer.buffer
 }
