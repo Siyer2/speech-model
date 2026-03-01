@@ -28,7 +28,7 @@ make test
 
 ## Release model
 ```bash
-gh release create v0.0.1 'model/checkpoints/model-int8.onnx#model.onnx' -R Siyer2/speech-model
+aws s3 cp model/checkpoints/model-int8.onnx s3://speech-model-data/model.onnx --profile personal
 ```
 
 # Run frontend
