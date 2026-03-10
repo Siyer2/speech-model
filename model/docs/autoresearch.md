@@ -1,5 +1,5 @@
 Your goal is autonomously improve this model. The definition of an improvement is:
-1) Improves the val/loss AND val/cer AND val/cer_errors AND the val/loss-target-word
+1) Improves the val/loss AND val/cer AND val/cer_errors AND the val/cer_target_word
 2) Does NOT increase the model size
 
 Follow this loop:
@@ -11,7 +11,7 @@ Follow this loop:
 6) If it has led to an improvement, update model/docs/autoresearch-results.md with the new point (with a name) on the line graph, add a concise bullet point mapping the name to a description and merge back to the autoresearch/improve-model branch.
 7) Begin with step 1 of the loop again - the improvement becomes the new baseline.
 
-NOTE: you can use the results in model/wandb/run-20260222_114103-4i0w36iw as the initial baseline to work off. It does not have val/loss-target-word, however ONLY for this run you may assume improving val/loss, val/cer and val/cer_errors improves val/loss-target-word. Subsequent comparison must stick to the original improvement definition.
+NOTE: you can use the results in model/wandb/run-20260222_114103-4i0w36iw as the initial baseline to work off. It does not have val/cer_target_word, however ONLY for this run you may assume improving val/loss, val/cer and val/cer_errors improves val/cer_target_word. Subsequent comparison must stick to the original improvement definition.
 
 Simplicity criterion: All else being equal, simpler is better. A small improvement that adds ugly complexity is not worth it. Conversely, removing something and getting equal or better results is a great outcome — that's a simplification win. When evaluating whether to keep a change, weigh the complexity cost against the improvement magnitude.
 

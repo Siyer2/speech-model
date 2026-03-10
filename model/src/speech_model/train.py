@@ -432,7 +432,7 @@ def main():
                 "train/loss": train_loss,
                 "val/loss": val_loss,
                 "val/cer": val_cer,
-                "val/cer-target-word": val_cer_tw,
+                "val/cer_target_word": val_cer_tw,
                 "val/cer_errors": val_cer_errors,
                 "lr": optimizer.param_groups[0]["lr"],
             },
