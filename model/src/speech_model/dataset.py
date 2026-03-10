@@ -1,3 +1,4 @@
+import json
 import logging
 import unicodedata
 from pathlib import Path
@@ -9,6 +10,16 @@ import soundfile as sf
 import torch
 import torchaudio
 from torch.utils.data import Dataset
+
+_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+
+
+def load_target_words() -> list[str]:
+    """Load the target word list from frontend/src/target_words.json."""
+    path = _PROJECT_ROOT / "frontend" / "src" / "target_words.json"
+    with open(path) as f:
+        return json.load(f)
+
 
 _INVALID_AUDIO = {
     "processed/audio_segments/Preston/P15_101.wav",
@@ -93,7 +104,9 @@ class Vocab:
         return "".join(self.idx_to_phone.get(i, "") for i in ids if i not in (0, self.UNK_IDX))
 
 
-class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool, str, str, str, str]]):
+class PhoneticDataset(
+    Dataset[tuple[torch.Tensor, torch.Tensor, str, bool, str, str, str, str, str]]
+):
     """Dataset that loads raw audio and phonetic transcriptions."""
 
     def __init__(
@@ -142,7 +155,7 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool, str, 
 
         Returns:
             Tuple of (audio_waveform, target_ids, target_text, has_errors,
-                       error_patterns_str, target_phonetic, utterance_id, audio_path_str),
+                       error_patterns_str, target_phonetic, utterance_id, audio_path_str, word),
             or None if the sample is broken.
         """
         row = self.df.iloc[index]
@@ -183,6 +196,7 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool, str, 
             target_phonetic = normalize_phonetic(raw_target)
             utterance_id = str(row.get("utterance_id", ""))
             audio_path_str = str(row["audio_path"])
+            word = str(row.get("word", ""))
 
             return (
                 waveform,
@@ -193,6 +207,7 @@ class PhoneticDataset(Dataset[tuple[torch.Tensor, torch.Tensor, str, bool, str, 
                 target_phonetic,
                 utterance_id,
                 audio_path_str,
+                word,
             )
         except Exception:
             logging.warning(f"Skipping broken sample {index}: {audio_path}")

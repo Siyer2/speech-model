@@ -18,7 +18,7 @@ from tqdm import tqdm
 from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2ForCTC
 
 from .config import Config
-from .dataset import PhoneticDataset, Vocab, normalize_for_cer
+from .dataset import PhoneticDataset, Vocab, load_target_words, normalize_for_cer
 from .decode import beam_search_decode
 from .loss import create_ctc_loss
 from .metrics import cer
@@ -40,7 +40,7 @@ def split_by_participant(
 
 
 def collate_fn_w2v(
-    batch: list[tuple[torch.Tensor, torch.Tensor, str, bool, str, str, str, str] | None],
+    batch: list[tuple[torch.Tensor, torch.Tensor, str, bool, str, str, str, str, str] | None],
     feature_extractor: Wav2Vec2FeatureExtractor,
 ) -> dict | None:
     """Collate for Wav2Vec2 training: normalize audio + pad targets."""
@@ -55,6 +55,7 @@ def collate_fn_w2v(
     target_phonetics = [b[5] for b in filtered]
     utterance_ids = [b[6] for b in filtered]
     audio_paths = [b[7] for b in filtered]
+    words = [b[8] for b in filtered]
 
     processed = feature_extractor(audios, sampling_rate=16000, return_tensors="pt", padding=True)
 
@@ -72,6 +73,7 @@ def collate_fn_w2v(
         "target_phonetics": target_phonetics,
         "utterance_ids": utterance_ids,
         "audio_paths": audio_paths,
+        "words": words,
     }
 
 
@@ -125,11 +127,14 @@ def validate_epoch(
     criterion: nn.Module,
     device: torch.device,
     vocab: Vocab,
-) -> tuple[float, float, float, list[tuple[str, str, float, str]], list[dict]]:
+    target_words: set[str] | None = None,
+) -> tuple[float, float, float, float, list[tuple[str, str, float, str]], list[dict]]:
     """Validate and compute CER.
 
     Returns:
-        Tuple of (avg_loss, avg_cer, avg_cer_errors, all_preds, instance_records) where
+        Tuple of (avg_loss, avg_cer_target_word, avg_cer, avg_cer_errors,
+        all_preds, instance_records) where avg_cer_target_word is CER computed
+        only on samples whose word is in the target word set,
         avg_cer_errors is CER computed only on samples with error patterns,
         all_preds contains (pred, target, cer, error_patterns) for every sample,
         and instance_records contains per-instance dicts for parquet logging.
@@ -138,8 +143,10 @@ def validate_epoch(
     total_loss = 0.0
     total_cer = 0.0
     total_cer_errors = 0.0
+    total_cer_target_word = 0.0
     num_samples = 0
     num_error_samples = 0
+    num_target_word_samples = 0
     all_preds: list[tuple[str, str, float, str]] = []
     instance_records: list[dict] = []
 
@@ -156,6 +163,7 @@ def validate_epoch(
             error_patterns = batch["error_patterns"]
             utterance_ids = batch["utterance_ids"]
             audio_paths = batch["audio_paths"]
+            words = batch["words"]
 
             logits = model(input_values, attention_mask=attention_mask).logits
             log_probs_ctc = nn.functional.log_softmax(logits, dim=-1)
@@ -184,6 +192,10 @@ def validate_epoch(
                     total_cer_errors += sample_cer
                     num_error_samples += 1
 
+                if target_words is not None and words[i].lower() in target_words:
+                    total_cer_target_word += sample_cer
+                    num_target_word_samples += 1
+
                 all_preds.append((norm_pred, norm_target, sample_cer, error_patterns[i]))
                 instance_records.append(
                     {
@@ -196,9 +208,12 @@ def validate_epoch(
                 )
 
     avg_loss = total_loss / len(dataloader)
+    avg_cer_target_word = (
+        total_cer_target_word / num_target_word_samples if num_target_word_samples > 0 else 0.0
+    )
     avg_cer = total_cer / num_samples if num_samples > 0 else 0.0
     avg_cer_errors = total_cer_errors / num_error_samples if num_error_samples > 0 else 0.0
-    return avg_loss, avg_cer, avg_cer_errors, all_preds, instance_records
+    return avg_loss, avg_cer_target_word, avg_cer, avg_cer_errors, all_preds, instance_records
 
 
 def save_checkpoint(
@@ -310,6 +325,8 @@ def main():
     )
 
     criterion = create_ctc_loss()
+    target_words = {w.lower() for w in load_target_words()}
+    print(f"Target words ({len(target_words)}): {sorted(target_words)}")
 
     # Resume from checkpoint if specified
     if config.training.resume_checkpoint:
@@ -326,16 +343,17 @@ def main():
         if not config.training.resume_checkpoint:
             raise ValueError("EVAL_ONLY=1 requires resume_checkpoint to be set in config")
 
-        val_loss, val_cer, val_cer_errors, all_preds, instance_records = validate_epoch(
+        val_loss, val_cer_tw, val_cer, val_cer_errors, all_preds, instance_records = validate_epoch(
             model,
             val_loader,
             criterion,
             device,
             vocab,
+            target_words=target_words,
         )
         print(
             f"Val Loss: {val_loss:.4f} | Val CER: {val_cer:.4f} | "
-            f"Val CER (errors): {val_cer_errors:.4f}"
+            f"Val CER (target words): {val_cer_tw:.4f} | Val CER (errors): {val_cer_errors:.4f}"
         )
         wandb_logger.log_predictions(all_preds, step=0)
         save_instance_parquet(instance_records, train_name)
@@ -394,17 +412,19 @@ def main():
             wandb_logger,
             global_step,
         )
-        val_loss, val_cer, val_cer_errors, all_preds, instance_records = validate_epoch(
+        val_loss, val_cer_tw, val_cer, val_cer_errors, all_preds, instance_records = validate_epoch(
             model,
             val_loader,
             criterion,
             device,
             vocab,
+            target_words=target_words,
         )
 
         print(
             f"Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | "
-            f"Val CER: {val_cer:.4f} | Val CER (errors): {val_cer_errors:.4f}"
+            f"Val CER: {val_cer:.4f} | Val CER (target words): {val_cer_tw:.4f} | "
+            f"Val CER (errors): {val_cer_errors:.4f}"
         )
 
         wandb_logger.log(
@@ -412,6 +432,7 @@ def main():
                 "train/loss": train_loss,
                 "val/loss": val_loss,
                 "val/cer": val_cer,
+                "val/cer-target-word": val_cer_tw,
                 "val/cer_errors": val_cer_errors,
                 "lr": optimizer.param_groups[0]["lr"],
             },

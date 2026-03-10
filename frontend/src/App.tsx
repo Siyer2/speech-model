@@ -11,26 +11,32 @@ import {
   type ConfirmationResult,
 } from './confirmationLogic'
 import './App.css'
+import TARGET_WORDS from './target_words.json'
 
 const NUM_BARS = 30
 
-const ASSESSMENT_WORDS = [
-  { word: 'cup', emoji: '\u{1F964}', ipa: '/kʌp/' },
-  { word: 'duck', emoji: '\u{1F986}', ipa: '/dʌk/' },
-  { word: 'green', emoji: '\u{1F7E2}', ipa: '/ɡɹin/' },
-  { word: 'shovel', emoji: '\u26CF\uFE0F', ipa: '/ʃʌvɫ/' },
-  { word: 'fish', emoji: '\u{1F41F}', ipa: '/fɪʃ/' },
-  { word: 'soap', emoji: '\u{1F9FC}', ipa: '/sop/' },
-  { word: 'zebra', emoji: '\u{1F993}', ipa: '/zibɹə/' },
-  { word: 'red', emoji: '\u{1F534}', ipa: '/ɹɛd/' },
-  { word: 'leaf', emoji: '\u{1F343}', ipa: '/lif/' },
-  { word: 'spoon', emoji: '\u{1F944}', ipa: '/spun/' },
-  { word: 'plate', emoji: '\u{1F37D}\uFE0F', ipa: '/plet/' },
-  { word: 'chair', emoji: '\u{1FA91}', ipa: '/tʃɛɚ/' },
-  { word: 'juice', emoji: '\u{1F9C3}', ipa: '/dʒus/' },
-  { word: 'yellow', emoji: '\u{1F7E1}', ipa: '/jɛlo/' },
-  { word: 'drum', emoji: '\u{1F941}', ipa: '/dɹʌm/' },
-]
+const WORD_DETAILS: Record<string, { emoji: string; ipa: string }> = {
+  cup: { emoji: '\u{1F964}', ipa: '/kʌp/' },
+  duck: { emoji: '\u{1F986}', ipa: '/dʌk/' },
+  green: { emoji: '\u{1F7E2}', ipa: '/ɡɹin/' },
+  shovel: { emoji: '\u26CF\uFE0F', ipa: '/ʃʌvɫ/' },
+  fish: { emoji: '\u{1F41F}', ipa: '/fɪʃ/' },
+  soap: { emoji: '\u{1F9FC}', ipa: '/sop/' },
+  zebra: { emoji: '\u{1F993}', ipa: '/zibɹə/' },
+  red: { emoji: '\u{1F534}', ipa: '/ɹɛd/' },
+  leaf: { emoji: '\u{1F343}', ipa: '/lif/' },
+  spoon: { emoji: '\u{1F944}', ipa: '/spun/' },
+  plate: { emoji: '\u{1F37D}\uFE0F', ipa: '/plet/' },
+  chair: { emoji: '\u{1FA91}', ipa: '/tʃɛɚ/' },
+  juice: { emoji: '\u{1F9C3}', ipa: '/dʒus/' },
+  yellow: { emoji: '\u{1F7E1}', ipa: '/jɛlo/' },
+  drum: { emoji: '\u{1F941}', ipa: '/dɹʌm/' },
+}
+
+const ASSESSMENT_WORDS = TARGET_WORDS.map((word) => ({
+  word,
+  ...WORD_DETAILS[word],
+}))
 
 type AppPhase = 'assessment' | 'confirmation' | 'results'
 
