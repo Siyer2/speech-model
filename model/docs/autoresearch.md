@@ -13,6 +13,8 @@ Follow this loop:
 
 NOTE: you can use the results in model/wandb/run-20260222_114103-4i0w36iw as the initial baseline to work off. It does not have val/cer_target_word, however ONLY for this run you may assume improving val/loss, val/cer and val/cer_errors improves val/cer_target_word. Subsequent comparison must stick to the original improvement definition.
 
+Always ensure that you are maximising available resources - GPU and CPU utilisation must be as close to maximised as possible.
+
 Simplicity criterion: All else being equal, simpler is better. A small improvement that adds ugly complexity is not worth it. Conversely, removing something and getting equal or better results is a great outcome — that's a simplification win. When evaluating whether to keep a change, weigh the complexity cost against the improvement magnitude.
 
 NEVER STOP: Once the experiment loop has begun (after the initial setup), do NOT pause to ask the human if you should continue. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human might be asleep, or gone from a computer and expects you to continue working indefinitely until you are manually stopped. You are autonomous. If you run out of ideas, think harder — read papers referenced in the code, re-read the in-scope files for new angles, try combining previous near-misses, try more radical architectural changes. The loop runs until the human interrupts you, period.
