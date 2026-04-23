@@ -56,6 +56,7 @@ function App() {
   const [confirmationTasks, setConfirmationTasks] = useState<ConfirmationTask[]>([])
   const [confirmationIndex, setConfirmationIndex] = useState(0)
   const [confirmationResults, setConfirmationResults] = useState<ConfirmationResult[]>([])
+  const [previousPrediction, setPreviousPrediction] = useState<string | null>(null)
 
   const activeWord =
     phase === 'confirmation'
@@ -182,6 +183,7 @@ function App() {
       }
 
       setAssessmentResults((prev) => [...prev, { word, errors }])
+      setPreviousPrediction(predicted)
     } catch (err) {
       console.error(`Inference failed for ${word}:`, err)
       setAssessmentResults((prev) => [...prev, { word, errors: [] }])
@@ -214,6 +216,7 @@ function App() {
       const errors = detectSpeechErrors(wordData.word, targetIpa, predicted)
       const confirmed = errors.some((e) => e.pattern === task.pattern)
 
+      setPreviousPrediction(predicted)
       setConfirmationResults((prev) => [
         ...prev,
         {
@@ -249,6 +252,7 @@ function App() {
     setConfirmationTasks([])
     setConfirmationIndex(0)
     setConfirmationResults([])
+    setPreviousPrediction(null)
     setError(null)
   }, [])
 
@@ -448,6 +452,13 @@ function App() {
           )}
         </div>
       </div>
+
+      {previousPrediction !== null && (
+        <div className="previous-prediction">
+          <p className="previous-prediction-label">Previous prediction</p>
+          <p className="previous-prediction-value">/{previousPrediction}/</p>
+        </div>
+      )}
     </div>
   )
 }
